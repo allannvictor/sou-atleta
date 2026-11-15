@@ -1,28 +1,23 @@
-import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { CABECALHO_JWT, type ObterChaves } from "./acesso";
 import { tratarRequisicao } from "./requisicao";
+import {
+  assinar,
+  AUD_DE_TESTE as AUD,
+  criarChavesDeTeste,
+  TIME_DE_TESTE as TIME,
+} from "./token-de-teste";
 
-const TIME = "https://sou-atleta-teste.cloudflareaccess.com";
-const AUD = "etiqueta-aud-de-teste";
-const env = { TEAM_DOMAIN: TIME, POLICY_AUD: AUD };
+const env = { TEAM_DOMAIN: TIME, POLICY_AUD: AUD, EMAILS_PERMITIDOS: "dono@exemplo.test" };
 
 let tokenValido: string;
 let obterChaves: ObterChaves;
 
 beforeAll(async () => {
-  const { publicKey, privateKey } = await generateKeyPair("RS256");
-  const jwk = { ...(await exportJWK(publicKey)), kid: "k", alg: "RS256" };
-  const conjunto = createLocalJWKSet({ keys: [jwk] });
-  obterChaves = () => conjunto;
-  tokenValido = await new SignJWT({})
-    .setProtectedHeader({ alg: "RS256", kid: "k" })
-    .setIssuer(TIME)
-    .setAudience(AUD)
-    .setIssuedAt()
-    .setExpirationTime("5m")
-    .sign(privateKey);
+  const chaves = await criarChavesDeTeste();
+  obterChaves = chaves.obterChaves;
+  tokenValido = await assinar(chaves.legitima.privateKey, { email: "dono@exemplo.test" });
 });
 
 const url = (caminho: string) => `https://sou-atleta.exemplo.workers.dev${caminho}`;
@@ -99,10 +94,35 @@ describe("tratarRequisicao", () => {
     const requisicao = new Request(url("/app"), { headers: { [CABECALHO_JWT]: tokenValido } });
     const resposta = await tratarRequisicao(
       requisicao,
-      { TEAM_DOMAIN: "", POLICY_AUD: "" },
+      { TEAM_DOMAIN: "", POLICY_AUD: "", EMAILS_PERMITIDOS: "" },
       renderizar,
       { obterChaves },
     );
+    expect(resposta.status).toBe(503);
+    expect(renderizar).not.toHaveBeenCalled();
+  });
+
+  it("área fechada com JWT válido, mas e-mail fora da lista: 403 e nada é renderizado", async () => {
+    const renderizar = criarRenderizador();
+    const requisicao = new Request(url("/app"), { headers: { [CABECALHO_JWT]: tokenValido } });
+    const resposta = await tratarRequisicao(
+      requisicao,
+      { ...env, EMAILS_PERMITIDOS: "outra.pessoa@exemplo.test" },
+      renderizar,
+      { obterChaves },
+    );
+    expect(resposta.status).toBe(403);
+    expect(renderizar).not.toHaveBeenCalled();
+    expect(resposta.headers.get("Cache-Control")).toBe("private, no-store");
+  });
+
+  it("área fechada com JWT válido, mas sem lista de e-mails: 503 e ninguém entra", async () => {
+    const renderizar = criarRenderizador();
+    const requisicao = new Request(url("/app"), { headers: { [CABECALHO_JWT]: tokenValido } });
+    const { TEAM_DOMAIN, POLICY_AUD } = env;
+    const resposta = await tratarRequisicao(requisicao, { TEAM_DOMAIN, POLICY_AUD }, renderizar, {
+      obterChaves,
+    });
     expect(resposta.status).toBe(503);
     expect(renderizar).not.toHaveBeenCalled();
   });
