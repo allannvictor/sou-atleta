@@ -16,11 +16,12 @@
   // qualquer arquivo cujo caminho comece com "app", em qualquer combinação de maiúsculas.
   "assets": { "run_worker_first": ["/app*", "/App*", "/APP*"] },
   // Cloudflare Access: domínio do time e etiqueta AUD da aplicação. Não são segredos
-  // (a etiqueta aparece em todo JWT). Sem os dois preenchidos, a rota /app recusa todo mundo.
-  // Passo a passo para preencher: PR da issue #4.
+  // (a etiqueta aparece em todo JWT). A Worker confere o JWT do Access contra esses dois valores;
+  // se algum ficar vazio, a rota /app recusa todo mundo. Trocar o nome do time Zero Trust muda o
+  // TEAM_DOMAIN (e os endereços de retorno no login do Google): ver docs/decisoes/0005-arquitetura.md.
   "vars": {
-    "TEAM_DOMAIN": "",
-    "POLICY_AUD": "",
+    "TEAM_DOMAIN": "https://broad-term-ec6b.cloudflareaccess.com",
+    "POLICY_AUD": "bbb3a6453516e33802697e799fb882d11e43e0ae5eaf8a8375418dd2b6dc6b7e",
   },
   "env": {
     // Só para os testes de interface (CLOUDFLARE_ENV=teste). Valores de mentira: nenhuma chave
