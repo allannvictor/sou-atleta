@@ -21,6 +21,8 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version-file: .nvmrc
+          # Sem pnpm neste job: o cache do setup-node procuraria o pnpm e falharia.
+          package-manager-cache: false
       - name: Conferir Closes #N e Refs #N
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
