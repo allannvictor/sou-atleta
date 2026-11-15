@@ -3,6 +3,11 @@ name: Deploy
 # Publica o site na Cloudflare quando algo entra na main. A main só recebe PR com o CI verde
 # (ruleset do repositório), então o que chega aqui já passou pelas checagens.
 # Não roda em PR nem em fork: só em push na main, e os secrets nunca são impressos.
+#
+# Os secrets da Cloudflare ficam num Environment do GitHub chamado "producao", restrito à branch
+# main (Settings > Environments). Por quê: secrets de repositório chegam a qualquer workflow de
+# qualquer branch, inclusive um PR que altere este arquivo. Secret de Environment só chega a um
+# job que declare `environment: producao`, e o GitHub recusa esse job fora da main.
 on:
   push:
     branches: [main]
@@ -20,9 +25,12 @@ jobs:
     name: Build e deploy na Cloudflare
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment: producao
     steps:
-      # Os secrets só entram nos dois passos que precisam deles (conferir e fazer o deploy).
-      # Passos que rodam código de terceiros, como a instalação das dependências, não os veem.
+      # Os secrets só entram na `env` dos dois passos que precisam deles (conferir e fazer o
+      # deploy). Isso NÃO isola os passos entre si: tudo que roda antes neste job (as actions,
+      # as dependências, o build) executa na mesma máquina e é confiável por definição. Por isso
+      # as actions abaixo ficam fixadas por commit (SHA) e o token tem só o mínimo de permissões.
       - name: Conferir se os secrets da Cloudflare existem
         id: secrets
         env:
@@ -34,23 +42,26 @@ jobs:
           [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || faltando="$faltando CLOUDFLARE_ACCOUNT_ID"
           if [ -n "$faltando" ]; then
             echo "pronto=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Deploy pulado::Faltam os secrets do GitHub:$faltando. Cadastre em Settings > Secrets and variables > Actions. O passo a passo está no PR da issue #4."
+            echo "::warning title=Deploy pulado::Faltam os secrets do Environment producao:$faltando. Cadastre em Settings > Environments > producao > Environment secrets. O passo a passo está no PR da issue #4."
             {
               echo "### Deploy pulado"
               echo
-              echo "Faltam os secrets do GitHub:$faltando"
+              echo "Faltam os secrets do Environment \`producao\`:$faltando"
               echo
-              echo "Cadastre em **Settings > Secrets and variables > Actions** e rode este workflow de novo."
+              echo "Cadastre em **Settings > Environments > producao > Environment secrets** (não em secrets de repositório) e rode este workflow de novo."
             } >> "$GITHUB_STEP_SUMMARY"
           else
             echo "pronto=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         if: steps.secrets.outputs.pronto == 'true'
-      - uses: pnpm/action-setup@v4
+        with:
+          # O GITHUB_TOKEN não precisa ficar em .git/config durante o build.
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         if: steps.secrets.outputs.pronto == 'true'
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         if: steps.secrets.outputs.pronto == 'true'
         with:
           node-version-file: .nvmrc

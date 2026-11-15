@@ -20,6 +20,7 @@ beforeAll(async () => {
     .setProtectedHeader({ alg: "RS256", kid: "k" })
     .setIssuer(TIME)
     .setAudience(AUD)
+    .setIssuedAt()
     .setExpirationTime("5m")
     .sign(privateKey);
 });

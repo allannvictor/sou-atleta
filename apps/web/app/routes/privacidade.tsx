@@ -57,63 +57,89 @@ export default function Privacidade() {
         <h2>Resumo de hoje</h2>
         <p>
           O site do {NOME_DO_APP} <strong>não coleta dados de quem o visita</strong>. As páginas
-          públicas não usam cookies, rastreadores nem análise de uso. O app ainda não está conectado
-          a nenhuma conta Garmin, então <strong>ainda não trata dados de saúde</strong>.
+          públicas não definem cookies e não têm rastreadores nem análise de uso. Os registros de
+          funcionamento do site estão desligados: o projeto não guarda registros de quem o visita. O
+          app ainda não está conectado a nenhuma conta Garmin, então{" "}
+          <strong>ainda não trata dados de saúde</strong>.
         </p>
         <p>
           As partes que dependem dessa conexão estão marcadas com &ldquo;Ainda não ativo&rdquo; e
           descrevem o que vamos cumprir quando ela existir. Antes de qualquer dado real entrar, esta
           política será atualizada, com nova data.
         </p>
-        <p>O {NOME_DO_APP} é para maiores de 18 anos.</p>
+        <p>O {NOME_DO_APP} é para pessoas com 18 anos ou mais.</p>
       </div>
 
       <Secao numero={1} titulo="Quais dados">
         <p>
           <strong>Hoje, nas páginas públicas:</strong> nenhum dado que você forneça. A Cloudflare,
-          empresa que entrega o site, processa dados técnicos de conexão, como o endereço IP, para o
-          site funcionar e se proteger de abusos.
+          empresa que entrega o site, processa dados técnicos da conexão, como o endereço de
+          internet (IP) do seu aparelho, para o site funcionar e se proteger de abusos. O projeto
+          não guarda esses dados.
         </p>
         <p>
           <strong>Hoje, na área fechada:</strong> o acesso é restrito ao responsável pelo projeto. O
-          serviço Cloudflare Access confere o e-mail de quem tenta entrar e guarda um cookie de
-          sessão para manter o login. Visitantes das páginas públicas não passam por isso.
+          serviço Cloudflare Access confere o e-mail de quem tenta entrar e guarda, só nessa área,
+          um cookie de sessão (chamado CF_Authorization) para manter o login. Visitantes das páginas
+          públicas não passam por isso.
         </p>
         <AindaNaoAtivo />
         <p>
           Quando o conector com a Garmin existir: atividades de corrida, frequência cardíaca,
           variabilidade da frequência cardíaca (HRV), sono, estresse e perfil de treino, vindos da
-          sua conta Garmin. Não pedimos a senha da sua conta Garmin, seu nome completo nem o trajeto
-          de GPS das corridas.
+          sua conta Garmin. Na primeira etapa, não pedimos a senha da sua conta Garmin, seu nome
+          completo nem o trajeto de GPS das corridas.
         </p>
       </Secao>
 
-      <Secao numero={2} titulo="Para quê">
-        <p>Hoje, os dados técnicos de conexão servem só para o site funcionar com segurança.</p>
+      <Secao numero={2} titulo="Para quê e por quanto tempo">
+        <p>
+          Hoje, os dados técnicos da conexão servem só para o site funcionar com segurança, e o
+          projeto não os guarda.
+        </p>
         <AindaNaoAtivo />
         <p>
           Quando houver dados de saúde, eles serão usados só para calcular e explicar as métricas do
           próprio atleta. Nada é vendido, compartilhado ou usado para publicidade.
         </p>
-      </Secao>
-
-      <Secao numero={3} titulo="Base legal">
-        <AindaNaoAtivo />
         <p>
-          Dados de saúde são dados pessoais sensíveis pela Lei Geral de Proteção de Dados (LGPD).
-          Por isso, antes de tratar qualquer um deles, o app vai pedir o seu{" "}
-          <strong>consentimento específico e destacado</strong>, em uma tela só para isso, no
-          primeiro acesso. Sem o seu consentimento, nenhum dado de saúde é tratado.
+          Seus dados ficam guardados enquanto a sua conta estiver conectada, até você apagá-los ou
+          desconectar. Depois disso, eles são apagados (veja a seção 7).
         </p>
       </Secao>
 
-      <Secao numero={4} titulo="Onde os dados ficam">
-        <p>O site roda na Cloudflare, que pode processar a conexão em servidores fora do Brasil.</p>
+      <Secao numero={3} titulo="Por que podemos usar seus dados (base legal)">
         <AindaNaoAtivo />
         <p>
-          Quando houver dados de saúde, eles ficarão guardados na Cloudflare, possivelmente fora do
-          Brasil. Isso é uma transferência internacional de dados, e vamos avisar aqui e no
-          consentimento antes de ela começar.
+          A lei brasileira de proteção de dados (LGPD) trata dados de saúde como dados sensíveis,
+          que pedem mais cuidado. Por isso, antes de usar qualquer um deles, o app vai pedir o seu{" "}
+          <strong>consentimento específico e destacado</strong>, em uma tela só para isso, no
+          primeiro acesso. Sem o seu consentimento, nenhum dado de saúde é usado.
+        </p>
+      </Secao>
+
+      <Secao numero={4} titulo="Onde os dados ficam e como são protegidos">
+        <p>
+          O site roda na Cloudflare, que pode processar a conexão em servidores fora do Brasil. A
+          conexão entre o seu navegador e o site é protegida (o endereço começa com https).
+        </p>
+        <AindaNaoAtivo />
+        <p>
+          Quando houver dados de saúde, eles ficarão guardados na Cloudflare, possivelmente em
+          servidores fora do Brasil. A lei chama isso de transferência internacional de dados, e
+          vamos avisar aqui e no consentimento antes de ela começar.
+        </p>
+        <p>
+          Como vamos protegê-los: a chave de acesso à sua conta Garmin fica guardada de forma
+          protegida e é apagada quando você desconectar (seção 6), e a inteligência artificial só
+          recebe números, sem seu nome nem seu e-mail (seção 5).
+        </p>
+        <p>
+          Se houver um incidente de segurança que possa trazer risco ou dano a você, avisamos você e
+          a Autoridade Nacional de Proteção de Dados (ANPD), como a lei exige, em prazo razoável. O
+          aviso diz o que aconteceu, quais dados foram afetados e o que estamos fazendo. Ele chega
+          pelo meio de contato que o app tiver registrado para você e também fica publicado neste
+          site.
         </p>
       </Secao>
 
@@ -127,35 +153,63 @@ export default function Privacidade() {
         </p>
       </Secao>
 
-      <Secao numero={6} titulo="Credenciais da Garmin">
-        <p>Hoje não existe nenhuma conexão com a Garmin e nenhuma credencial guardada.</p>
+      <Secao numero={6} titulo="Sua conta Garmin">
+        <p>Hoje não existe nenhuma conexão com a Garmin e nenhuma chave de acesso guardada.</p>
         <AindaNaoAtivo />
         <p>
-          Na primeira etapa, usada só pelo responsável pelo projeto, a chave pessoal da Garmin fica
-          num cofre de segredos da Cloudflare e nunca é gravada em banco de dados, em registros de
-          funcionamento (logs) ou em arquivos. Na etapa seguinte, com o botão &ldquo;Conectar com
-          Garmin&rdquo;, o token de acesso fica criptografado e é apagado quando você desconectar.
+          Não pedimos a senha da sua conta Garmin. Usamos só uma chave de acesso, que a Garmin gera
+          com a sua autorização.
+        </p>
+        <p>
+          Na primeira etapa, usada só pelo responsável pelo projeto, a chave pessoal fica num local
+          protegido da Cloudflare (o &ldquo;cofre de segredos&rdquo;) e nunca é gravada em banco de
+          dados, em registros de funcionamento ou em arquivos. Na etapa seguinte, com o botão
+          &ldquo;Conectar com Garmin&rdquo;, a chave de acesso fica guardada de forma protegida
+          (embaralhada, o que se chama criptografia) e é apagada quando você desconectar.
         </p>
       </Secao>
 
       <Secao numero={7} titulo="Seus direitos">
         <p>
-          Hoje o site não guarda dados seus, então não há o que apagar. Mesmo assim, você pode pedir
-          informações ou exercer seus direitos previstos na LGPD escrevendo para{" "}
-          <a href={`mailto:${EMAIL_DE_CONTATO}`}>{EMAIL_DE_CONTATO}</a>.
+          Hoje o site não guarda dados seus, então não há o que apagar. Mesmo assim, os direitos
+          abaixo valem desde já. Para exercer qualquer um deles, escreva para{" "}
+          <a href={`mailto:${EMAIL_DE_CONTATO}`}>{EMAIL_DE_CONTATO}</a>. Respondemos nos prazos que
+          a lei prevê.
+        </p>
+        <p>Pelo artigo 18 da LGPD, você pode pedir:</p>
+        <ul className="lista-simples">
+          <li>confirmação de que tratamos dados seus;</li>
+          <li>acesso aos seus dados;</li>
+          <li>correção de dados incompletos, errados ou desatualizados;</li>
+          <li>
+            anonimização, bloqueio ou eliminação de dados desnecessários, em excesso ou tratados
+            fora da lei;
+          </li>
+          <li>portabilidade dos seus dados para outro serviço;</li>
+          <li>eliminação dos dados tratados com o seu consentimento;</li>
+          <li>informação sobre com quais entidades compartilhamos os seus dados;</li>
+          <li>informação sobre a possibilidade de não dar o consentimento e suas consequências;</li>
+          <li>revogação do consentimento, a qualquer momento.</li>
+        </ul>
+        <p>
+          Você também pode apresentar uma reclamação à Autoridade Nacional de Proteção de Dados
+          (ANPD).
         </p>
         <AindaNaoAtivo />
         <p>
           Quando houver dados de saúde, você poderá ver, baixar e apagar tudo com um clique, e
           revogar o acesso na própria Garmin.{" "}
-          <strong>Ao desconectar ou sair, apagamos todos os seus dados imediatamente.</strong>
+          <strong>Ao desconectar ou sair, apagamos seus dados do app imediatamente.</strong> Cópias
+          de segurança mantidas pela infraestrutura podem levar um tempo para sumir por completo;
+          elas não são usadas para nenhuma outra finalidade, e o prazo exato será informado aqui na
+          atualização que antecede a entrada de qualquer dado real.
         </p>
       </Secao>
 
       <Secao numero={8} titulo="Compartilhamento">
         <p>
-          Nada é vendido, compartilhado ou usado para publicidade. Hoje, os dados técnicos de
-          conexão passam apenas pela Cloudflare, que hospeda o site.
+          Nada é vendido, compartilhado ou usado para publicidade. Hoje, os dados técnicos da
+          conexão passam apenas pela Cloudflare, que hospeda o site em nosso nome.
         </p>
         <AindaNaoAtivo />
         <p>
@@ -176,10 +230,7 @@ export default function Privacidade() {
           O responsável pelo tratamento dos dados é o projeto {NOME_DO_APP}, identificado pelo
           e-mail <a href={`mailto:${EMAIL_DE_CONTATO}`}>{EMAIL_DE_CONTATO}</a>.
         </p>
-        <p>
-          Quando esta política mudar, a data de atualização no topo muda junto. Última atualização:{" "}
-          <time dateTime={POLITICA_ATUALIZADA_EM.iso}>{POLITICA_ATUALIZADA_EM.porExtenso}</time>.
-        </p>
+        <p>Quando esta política mudar, a data de atualização no topo da página muda junto.</p>
       </Secao>
     </>
   );

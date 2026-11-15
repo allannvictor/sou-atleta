@@ -28,14 +28,17 @@ export function Layout({ children }: { readonly children: React.ReactNode }) {
           {children}
         </main>
         <footer className="rodape">
+          <ul className="rodape-links">
+            <li>
+              <Link to="/privacidade">Política de privacidade</Link>
+            </li>
+            <li>
+              <a href={`mailto:${EMAIL_DE_CONTATO}`}>{EMAIL_DE_CONTATO}</a>
+            </li>
+          </ul>
           <p>
-            <Link to="/privacidade">Política de privacidade</Link>
-            {" · "}
-            <a href={`mailto:${EMAIL_DE_CONTATO}`}>{EMAIL_DE_CONTATO}</a>
-          </p>
-          <p>
-            Garmin é marca de seus titulares. O {NOME_DO_APP} é um projeto independente e usa a
-            Garmin apenas como fonte de dados.
+            Garmin e os nomes dos seus recursos são marcas de seus titulares. O {NOME_DO_APP} é um
+            projeto independente e usa a Garmin apenas como fonte de dados.
           </p>
         </footer>
         <Scripts />

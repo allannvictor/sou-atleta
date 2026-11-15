@@ -3,7 +3,18 @@
   "name": "sou-atleta",
   "main": "./workers/app.ts",
   "compatibility_date": "2026-10-01",
-  "observability": { "enabled": true },
+  // Workers Logs desligados (decisão do dono, issue #4): eles guardariam IP e navegador de cada
+  // visita, e a política de privacidade diz que o site não coleta dados do visitante. Só ligue
+  // junto com uma atualização da política. Reavaliar quando o conector da Garmin (#5) chegar.
+  "observability": { "enabled": false },
+  // Só o endereço workers.dev principal. Os endereços por versão (Version URLs) ficam ligados
+  // por padrão e não passam pelo Access do painel: desligados, só existe um endereço a proteger.
+  "workers_dev": true,
+  "preview_urls": false,
+  // Nada sob /app pode ser servido como arquivo estático sem passar pela Worker (e pela trava de
+  // acesso dela). Um teste (e2e/configuracao-de-deploy.spec.ts) também falha se o build gerar
+  // qualquer arquivo cujo caminho comece com "app", em qualquer combinação de maiúsculas.
+  "assets": { "run_worker_first": ["/app*", "/App*", "/APP*"] },
   // Cloudflare Access: domínio do time e etiqueta AUD da aplicação. Não são segredos
   // (a etiqueta aparece em todo JWT). Sem os dois preenchidos, a rota /app recusa todo mundo.
   // Passo a passo para preencher: PR da issue #4.

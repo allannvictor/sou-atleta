@@ -77,6 +77,26 @@ test.describe("o que o site público não faz", () => {
   });
 });
 
+test.describe("rodapé no celular", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("os links têm pelo menos 44px de altura e ficam um embaixo do outro", async ({ page }) => {
+    await page.goto("/");
+    const links = page.getByRole("contentinfo").getByRole("link");
+    await expect(links).toHaveCount(2);
+    const caixas = await links.evaluateAll((elementos) =>
+      elementos.map((elemento) => {
+        const { top, height } = elemento.getBoundingClientRect();
+        return { top, height };
+      }),
+    );
+    for (const caixa of caixas) {
+      expect(caixa.height).toBeGreaterThanOrEqual(44);
+    }
+    expect(caixas[1]?.top ?? 0).toBeGreaterThanOrEqual((caixas[0]?.top ?? 0) + 44);
+  });
+});
+
 test.describe("navegação", () => {
   test("da página inicial para a política e de volta, sem erro no console", async ({ page }) => {
     const erros: string[] = [];
@@ -102,6 +122,12 @@ test.describe("navegação", () => {
     await expect(
       page.getByRole("main").getByRole("heading", { level: 2, name: /^\d+\. / }),
     ).toHaveCount(10);
+  });
+
+  test("a política tem os 10 títulos de seção e a lista de direitos da LGPD", async ({ page }) => {
+    await page.goto("/privacidade");
+    await expect(page.getByRole("main").getByText("Pelo artigo 18 da LGPD")).toBeVisible();
+    await expect(page.getByRole("main").getByRole("listitem")).toHaveCount(9);
   });
 
   test("página inexistente responde 404 em pt-BR", async ({ page }) => {

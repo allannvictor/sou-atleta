@@ -146,6 +146,10 @@ p {
   margin-block: 1.25rem;
 }
 
+.resumo h2 {
+  margin-top: 0;
+}
+
 .resumo p:last-child {
   margin-bottom: 0;
 }
@@ -170,4 +174,36 @@ p {
 
 .rodape p {
   margin: 0 0 0.5rem;
+}
+
+/* Links do rodapé com área de toque confortável (mínimo de 44px de altura) e, no celular,
+   um por linha, para não se tocar no link errado. */
+.rodape-links {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 1.5rem;
+}
+
+.rodape-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+}
+
+@media (max-width: 600px) {
+  .rodape-links {
+    flex-direction: column;
+  }
+}
+
+.lista-simples {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+}
+
+.lista-simples li {
+  margin-bottom: 0.25rem;
 }

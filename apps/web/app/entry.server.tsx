@@ -10,18 +10,14 @@ export default async function handleRequest(
   routerContext: EntryContext,
   loadContext: AppLoadContext,
 ): Promise<Response> {
-  let statusCode = responseStatusCode;
   const { nonce } = loadContext;
 
   const corpo = await renderToReadableStream(
     <ServerRouter context={routerContext} url={request.url} nonce={nonce} />,
-    {
-      nonce,
-      onError() {
-        // Erro durante o streaming: a resposta já começou, só marcamos como falha.
-        statusCode = 500;
-      },
-    },
+    // Sem `onError` de propósito: assim o React mantém o registro de erro padrão. Um `onError`
+    // vazio engoliria erros de renderização sem deixar rastro, e o status da resposta já está
+    // decidido quando o streaming começa, então marcar falha ali não mudaria nada.
+    { nonce },
   );
 
   // Robôs de busca esperam a página inteira (melhor para quem lê a política pelo Google).
@@ -30,5 +26,5 @@ export default async function handleRequest(
   }
 
   responseHeaders.set("Content-Type", "text/html; charset=utf-8");
-  return new Response(corpo, { status: statusCode, headers: responseHeaders });
+  return new Response(corpo, { status: responseStatusCode, headers: responseHeaders });
 }

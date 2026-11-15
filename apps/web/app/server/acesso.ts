@@ -29,7 +29,10 @@ export type ResultadoDoAcesso =
   | { readonly permitido: true }
   | {
       readonly permitido: false;
-      /** 403: sem JWT ou JWT inválido. 503: Access ainda não configurado nesta Worker. */
+      /**
+       * 403: sem JWT ou JWT inválido. 503: chegou um JWT, mas esta Worker ainda não tem o domínio
+       * do time e a etiqueta AUD (`vars` do wrangler.jsonc).
+       */
       readonly status: 403 | 503;
       readonly mensagem: string;
     };
@@ -62,6 +65,12 @@ const negado = (status: 403 | 503, mensagem: string): ResultadoDoAcesso => ({
 /**
  * Só deixa passar quem apresenta um JWT do Access válido para ESTA aplicação: assinatura RS256,
  * emissor (`iss`), público (`aud`) e validade (`exp`). Na dúvida, recusa.
+ *
+ * Ordem das checagens (de propósito): primeiro o cabeçalho, depois a configuração. Quem chega
+ * sem JWT recebe sempre 403, esteja o Access configurado ou não, então a Worker não revela a
+ * um visitante anônimo que a configuração ainda falta. O 503 só aparece para quem já apresenta
+ * um JWT (ou seja, depois que o Access existe no painel) e a Worker não tem o domínio do time
+ * e a etiqueta AUD preenchidos: ninguém entra, e o dono vê que falta o passo de configuração.
  */
 export async function verificarAcesso(
   request: Request,
@@ -85,6 +94,9 @@ export async function verificarAcesso(
       issuer: TEAM_DOMAIN,
       audience: POLICY_AUD,
       clockTolerance: 30,
+      // Sem isto a `jose` só confere `exp` se ele existir no token: um JWT sem validade seria
+      // aceito para sempre. O Access sempre emite os dois.
+      requiredClaims: ["exp", "iat"],
     });
     return { permitido: true };
   } catch {

@@ -109,6 +109,33 @@ describe("verificarAcesso", () => {
     });
   });
 
+  it("recusa JWT válido na assinatura, mas sem validade (sem exp)", async () => {
+    // Sem `requiredClaims`, a jose aceitaria este token para sempre.
+    const semExp = await new SignJWT({ email: "dono@exemplo.test" })
+      .setProtectedHeader({ alg: "RS256", kid: "chave-1" })
+      .setIssuer(TIME)
+      .setAudience(AUD)
+      .setIssuedAt()
+      .sign(legitima.privateKey);
+    expect(await verificarAcesso(pedido(semExp), env, obterChaves)).toMatchObject({
+      permitido: false,
+      status: 403,
+    });
+  });
+
+  it("recusa JWT válido na assinatura, mas sem data de emissão (sem iat)", async () => {
+    const semIat = await new SignJWT({ email: "dono@exemplo.test" })
+      .setProtectedHeader({ alg: "RS256", kid: "chave-1" })
+      .setIssuer(TIME)
+      .setAudience(AUD)
+      .setExpirationTime("5m")
+      .sign(legitima.privateKey);
+    expect(await verificarAcesso(pedido(semIat), env, obterChaves)).toMatchObject({
+      permitido: false,
+      status: 403,
+    });
+  });
+
   it("recusa JWT sem assinatura (alg none) mesmo com iss e aud corretos", async () => {
     const parte = (objeto: object) =>
       btoa(JSON.stringify(objeto)).replaceAll("=", "").replaceAll("+", "-").replaceAll("/", "_");
@@ -166,10 +193,19 @@ describe("verificarAcesso", () => {
   });
 
   it("sem JWT recusa com 403 mesmo se a configuração estiver ruim", async () => {
+    // Antes de o Access existir no painel ninguém envia o cabeçalho: o visitante anônimo recebe
+    // 403 e não fica sabendo que a configuração da Worker ainda falta.
     expect(await verificarAcesso(pedido(), {}, obterChaves)).toMatchObject({
       permitido: false,
       status: 403,
     });
+  });
+
+  it("a mensagem do 503 só aparece para quem já traz um JWT", async () => {
+    const semJwt = await verificarAcesso(pedido(), {}, obterChaves);
+    const comJwt = await verificarAcesso(pedido("abc.def.ghi"), {}, obterChaves);
+    expect(semJwt).toMatchObject({ status: 403 });
+    expect(comJwt).toMatchObject({ status: 503 });
   });
 
   it("a mensagem de recusa não revela o motivo", async () => {

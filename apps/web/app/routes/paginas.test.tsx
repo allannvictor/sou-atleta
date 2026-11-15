@@ -22,11 +22,11 @@ describe("política de privacidade", () => {
     expect(titulos.map((t) => Number(t[2]))).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     expect(titulos.map((t) => t[3])).toEqual([
       "Quais dados",
-      "Para quê",
-      "Base legal",
-      "Onde os dados ficam",
+      "Para quê e por quanto tempo",
+      "Por que podemos usar seus dados (base legal)",
+      "Onde os dados ficam e como são protegidos",
       "Inteligência artificial",
-      "Credenciais da Garmin",
+      "Sua conta Garmin",
       "Seus direitos",
       "Compartilhamento",
       "Aviso de responsabilidade",
@@ -44,15 +44,65 @@ describe("política de privacidade", () => {
     expect(marcacao).toContain(`<time dateTime="${POLITICA_ATUALIZADA_EM.iso}">`);
   });
 
-  it("diz a idade mínima e a exclusão imediata", () => {
-    expect(texto).toContain("maiores de 18 anos");
-    expect(texto).toMatch(/apagamos todos os seus dados imediatamente/);
+  it("diz a idade mínima (18 anos ou mais) e a exclusão imediata dos dados do app", () => {
+    expect(texto).toContain("pessoas com 18 anos ou mais");
+    expect(texto).not.toContain("maiores de 18");
+    expect(texto).toMatch(/apagamos seus dados do app imediatamente/);
+  });
+
+  it("não promete apagar tudo de imediato: cópias de segurança podem levar um tempo", () => {
+    expect(texto).not.toMatch(/apagamos todos os seus dados imediatamente/);
+    expect(texto).toMatch(/Cópias de segurança mantidas pela infraestrutura podem levar um tempo/);
   });
 
   it("diz a verdade da etapa 1: sem coleta de visitante, sem cookies nas páginas públicas, sem dados de saúde", () => {
     expect(texto).toMatch(/não coleta dados de quem o visita/);
-    expect(texto).toMatch(/não usam cookies, rastreadores nem análise de uso/);
+    expect(texto).toMatch(/não definem cookies e não têm rastreadores nem análise de uso/);
     expect(texto).toMatch(/ainda não trata dados de saúde/);
+  });
+
+  it("diz que os registros de funcionamento do site estão desligados", () => {
+    expect(texto).toMatch(/registros de\s+funcionamento do site estão desligados/);
+    expect(texto).toMatch(/o projeto não guarda registros de quem o visita/);
+  });
+
+  it("lista os direitos do artigo 18 da LGPD e a reclamação à ANPD", () => {
+    expect(texto).toContain("Pelo artigo 18 da LGPD, você pode pedir");
+    for (const direito of [
+      /confirmação de que tratamos dados seus/,
+      /acesso aos seus dados/,
+      /correção de dados incompletos, errados ou desatualizados/,
+      /anonimização, bloqueio ou eliminação de dados desnecessários/,
+      /portabilidade dos seus dados/,
+      /eliminação dos dados tratados com o seu consentimento/,
+      /com quais entidades compartilhamos/,
+      /possibilidade de não dar o consentimento e suas consequências/,
+      /revogação do consentimento, a qualquer momento/,
+      /reclamação à Autoridade Nacional de Proteção de Dados \(ANPD\)/,
+    ]) {
+      expect(texto).toMatch(direito);
+    }
+    expect(marcacao.match(/<li>/g) ?? []).toHaveLength(9);
+  });
+
+  it("diz por quanto tempo os dados ficam, como são protegidos e como o titular é avisado de incidente", () => {
+    expect(texto).toMatch(/ficam guardados enquanto a sua conta estiver conectada/);
+    expect(texto).toMatch(/Como vamos protegê-los/);
+    expect(texto).toMatch(
+      /incidente de segurança que possa trazer risco ou dano a você, avisamos você e a Autoridade Nacional/,
+    );
+  });
+
+  it("evita jargão que o atleta não conhece (token, logs, criptografado)", () => {
+    expect(texto).not.toMatch(/\btokens?\b/i);
+    expect(texto).not.toMatch(/\blogs?\b/i);
+    expect(texto).not.toMatch(/criptografad/i);
+    // "criptografia" só aparece explicada em palavras simples.
+    expect(texto).toMatch(/embaralhada, o que se chama criptografia/);
+  });
+
+  it("não fala em Cloudflare Access de um jeito que sugira cookie nas páginas públicas", () => {
+    expect(texto).toMatch(/só nessa área,\s+um cookie de sessão/);
   });
 
   it("marca como 'Ainda não ativo' as partes que dependem do conector Garmin", () => {
@@ -63,7 +113,7 @@ describe("política de privacidade", () => {
 
   it("mantém o compromisso da IA, da chave Garmin e do consentimento", () => {
     expect(texto).toMatch(/sem seu nome nem\s+seu e-mail/);
-    expect(texto).toMatch(/nunca é gravada em banco de dados/);
+    expect(texto).toMatch(/nunca é gravada em banco de\s+dados/);
     expect(texto).toMatch(/consentimento específico e destacado/);
   });
 
@@ -88,8 +138,24 @@ describe("página inicial", () => {
     expect(texto).toContain("Tradutor do seu relógio");
   });
 
+  it("explica em linguagem simples os termos da Garmin que cita", () => {
+    expect(texto).toMatch(/Training Status \(como está o seu\s+treino\)/);
+    expect(texto).toMatch(/Training Effect \(o efeito de um treino/);
+    expect(texto).toMatch(/Body\s+Battery \(a sua energia ao longo do dia\)/);
+    expect(texto).toMatch(/HRV Status \(como varia o tempo entre um\s+batimento e outro/);
+  });
+
+  it("não fala como se o app já funcionasse: o que oferece está no futuro", () => {
+    expect(texto).toMatch(/está sendo feito para pegar/);
+    expect(texto).toMatch(/Cada número vai responder/);
+    expect(texto).toMatch(/ainda não funciona para o público/);
+    expect(texto).not.toMatch(/O Sou Atleta pega os dados/);
+    expect(texto).not.toMatch(/Cada número responde/);
+  });
+
   it("diz que descreve e estima, sem recomendar treino, e que está em fase fechada", () => {
     expect(texto).toMatch(/descreve e estima/);
+    expect(texto).toMatch(/Como está hoje/);
     expect(texto).toMatch(/não recomenda treino, não\s+prescreve e não julga/);
     expect(texto).toMatch(/fase fechada/);
   });
