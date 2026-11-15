@@ -44,15 +44,58 @@ describe("política de privacidade", () => {
     expect(marcacao).toContain(`<time dateTime="${POLITICA_ATUALIZADA_EM.iso}">`);
   });
 
-  it("diz a idade mínima (18 anos ou mais) e a exclusão imediata dos dados do app", () => {
+  it("diz a idade mínima (18 anos ou mais) e apaga os dados de menores que se cadastrarem", () => {
     expect(texto).toContain("pessoas com 18 anos ou mais");
     expect(texto).not.toContain("maiores de 18");
-    expect(texto).toMatch(/apagamos seus dados do app imediatamente/);
+    expect(texto).toContain(
+      "Se soubermos que alguém com menos de 18 anos se cadastrou, apagamos os dados.",
+    );
+  });
+
+  it("separa sair, desconectar a Garmin e apagar a conta (issue #21)", () => {
+    expect(texto).toMatch(/Sair apenas encerra a sua sessão\. Nunca apaga dados\./);
+    expect(texto).toMatch(
+      /Desconectar a Garmin interrompe a sincronização e apaga a chave de acesso, mas mantém o histórico já importado, para você não recomeçar do zero se reconectar/,
+    );
+    expect(texto).toMatch(
+      /Apagar minha conta apaga tudo, na hora\. Equivale a revogar o seu consentimento/,
+    );
+    // A frase antiga misturava sair e desconectar e prometia apagar tudo.
+    expect(texto).not.toMatch(/desconectar ou sair/i);
+    expect(texto).not.toMatch(/apagada quando você desconectar\b(?! a Garmin)/);
+    expect(texto).not.toMatch(/apagamos seus dados do app imediatamente/);
+  });
+
+  it("deixa claro que nada é apagado na Garmin: o app só guarda uma cópia", () => {
+    expect(texto).toMatch(
+      /Nada disso apaga algo na Garmin: o app só guarda uma cópia dos seus dados/,
+    );
+  });
+
+  it("diz que os dados ficam até apagar a conta ou 24 meses sem uso, com aviso por e-mail", () => {
+    expect(texto).toMatch(
+      /até você usar “Apagar minha conta”, que apaga tudo, ou até 24 meses sem uso/,
+    );
+    expect(texto).toMatch(/Antes de apagar por falta de uso, avisamos você por e-mail/);
+    expect(texto).not.toMatch(/ficam guardados enquanto a sua conta estiver conectada/);
+  });
+
+  it("permite revogar o consentimento a qualquer momento, inclusive por e-mail", () => {
+    expect(texto).toMatch(/Você pode revogar o seu consentimento a qualquer momento/);
+    expect(texto).toMatch(
+      /apagar a conta equivale a revogá-lo, e você também pode pedir isso por e-mail/,
+    );
+  });
+
+  it("promete resposta em até 15 dias, ou antes se a lei exigir prazo menor", () => {
+    expect(texto).toContain("Respondemos em até 15 dias, ou antes, se a lei exigir prazo menor.");
+    expect(texto).not.toMatch(/Respondemos nos prazos que a lei prevê/);
   });
 
   it("não promete apagar tudo de imediato: cópias de segurança podem levar um tempo", () => {
     expect(texto).not.toMatch(/apagamos todos os seus dados imediatamente/);
     expect(texto).toMatch(/Cópias de segurança mantidas pela infraestrutura podem levar um tempo/);
+    expect(texto).toMatch(/prazo exato será\s+informado aqui/);
   });
 
   it("diz a verdade da etapa 1: sem coleta de visitante, sem cookies nas páginas públicas, sem dados de saúde", () => {
@@ -86,7 +129,7 @@ describe("política de privacidade", () => {
   });
 
   it("diz por quanto tempo os dados ficam, como são protegidos e como o titular é avisado de incidente", () => {
-    expect(texto).toMatch(/ficam guardados enquanto a sua conta estiver conectada/);
+    expect(texto).toMatch(/Seus dados ficam guardados até você usar/);
     expect(texto).toMatch(/Como vamos protegê-los/);
     expect(texto).toMatch(
       /incidente de segurança que possa trazer risco ou dano a você, avisamos você e a Autoridade Nacional/,

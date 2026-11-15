@@ -130,6 +130,33 @@ test.describe("navegação", () => {
     await expect(page.getByRole("main").getByRole("listitem")).toHaveCount(9);
   });
 
+  test("a política separa sair, desconectar a Garmin e apagar a conta, e traz menores, prazo e inatividade", async ({
+    page,
+  }) => {
+    await page.goto("/privacidade");
+    const principal = page.getByRole("main");
+    await expect(
+      principal.getByText("Sair apenas encerra a sua sessão. Nunca apaga dados."),
+    ).toBeVisible();
+    await expect(
+      principal.getByText(/Desconectar a Garmin interrompe a sincronização/),
+    ).toBeVisible();
+    await expect(principal.getByText(/Apagar minha conta apaga tudo, na hora/)).toBeVisible();
+    await expect(principal.getByText(/Nada disso apaga algo na Garmin/)).toBeVisible();
+    await expect(principal.getByText(/até 24 meses sem uso/).first()).toBeVisible();
+    await expect(
+      principal.getByText("Se soubermos que alguém com menos de 18 anos se cadastrou", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    await expect(
+      principal.getByText("Respondemos em até 15 dias, ou antes, se a lei exigir prazo menor.", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    await expect(principal.getByText(/desconectar ou sair/i)).toHaveCount(0);
+  });
+
   test("página inexistente responde 404 em pt-BR", async ({ page }) => {
     const resposta = await page.goto("/nao-existe");
     expect(resposta?.status()).toBe(404);
