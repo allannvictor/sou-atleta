@@ -1,0 +1,14 @@
+{
+  "name": "@sou-atleta/checar-pr",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Confere se a descrição de um PR fecha a issue certa (palavras-chave em inglês do GitHub).",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "4.1.12"
+  }
+}

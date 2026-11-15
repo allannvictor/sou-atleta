@@ -1,0 +1,27 @@
+name: Checar a descrição do PR
+
+# pull_request (nunca pull_request_target): o corpo vem do evento e o job não recebe segredos.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  referencia-de-fechamento:
+    name: Referência de fechamento da issue
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event.pull_request.base.ref == 'main'
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: Conferir Closes #N e Refs #N
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node tools/checar-pr/src/cli.ts

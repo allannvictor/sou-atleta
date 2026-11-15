@@ -1,6 +1,8 @@
 ## Issue
 
-Fecha #
+<!-- O GitHub só reconhece palavras-chave em inglês: use "Closes #N" para fechar a issue ao mesclar. "Refs #N" serve para PR que não fecha a issue. -->
+
+Closes #
 
 ## O que muda
 
