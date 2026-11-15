@@ -127,7 +127,43 @@ test.describe("navegação", () => {
   test("a política tem os 10 títulos de seção e a lista de direitos da LGPD", async ({ page }) => {
     await page.goto("/privacidade");
     await expect(page.getByRole("main").getByText("Pelo artigo 18 da LGPD")).toBeVisible();
-    await expect(page.getByRole("main").getByRole("listitem")).toHaveCount(9);
+    await expect(
+      page
+        .getByRole("main")
+        .getByRole("list", { name: "Direitos do artigo 18 da LGPD" })
+        .getByRole("listitem"),
+    ).toHaveCount(9);
+  });
+
+  test("a política separa sair, desconectar a Garmin e apagar a conta, e traz menores, prazo e inatividade", async ({
+    page,
+  }) => {
+    await page.goto("/privacidade");
+    const principal = page.getByRole("main");
+    await expect(principal.getByText("Só encerra a sua sessão. Nunca apaga dados.")).toBeVisible();
+    await expect(
+      principal.getByText(/Interrompe a sincronização e apaga a chave de acesso/),
+    ).toBeVisible();
+    await expect(principal.getByText(/Apaga todos os seus dados no app, na hora/)).toBeVisible();
+    await expect(principal.getByText(/podem levar até 30 dias para sumir/)).toBeVisible();
+    await expect(principal.getByText(/Nada disso apaga algo na Garmin/)).toBeVisible();
+    await expect(principal.getByText(/até 24 meses sem uso/).first()).toBeVisible();
+    await expect(
+      principal.getByText("Se soubermos que alguém com menos de 18 anos se cadastrou", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    await expect(
+      principal.getByText(
+        "Quando você pedir por e-mail, respondemos em até 15 dias, ou antes, se a lei exigir prazo menor.",
+        { exact: false },
+      ),
+    ).toBeVisible();
+    await expect(principal.getByText(/Também avisamos a Garmin/i)).toHaveCount(0);
+    await expect(
+      principal.getByText(/Na etapa seguinte \(ainda não ativa\), também avisaremos a Garmin/),
+    ).toBeVisible();
+    await expect(principal.getByText(/desconectar ou sair/i)).toHaveCount(0);
   });
 
   test("página inexistente responde 404 em pt-BR", async ({ page }) => {

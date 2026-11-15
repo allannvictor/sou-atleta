@@ -44,25 +44,138 @@ describe("política de privacidade", () => {
     expect(marcacao).toContain(`<time dateTime="${POLITICA_ATUALIZADA_EM.iso}">`);
   });
 
-  it("diz a idade mínima (18 anos ou mais) e a exclusão imediata dos dados do app", () => {
+  it("diz a idade mínima (18 anos ou mais), apaga os dados de menores e diz como avisar", () => {
     expect(texto).toContain("pessoas com 18 anos ou mais");
     expect(texto).not.toContain("maiores de 18");
-    expect(texto).toMatch(/apagamos seus dados do app imediatamente/);
+    expect(texto).toContain(
+      "Se soubermos que alguém com menos de 18 anos se cadastrou, apagamos os dados.",
+    );
+    expect(texto).toMatch(
+      /Se você é responsável por uma pessoa com menos de 18 anos que se cadastrou, ou sabe de um caso assim, escreva para souatletaapp@gmail\.com e apagamos os dados dessa pessoa/,
+    );
   });
 
-  it("não promete apagar tudo de imediato: cópias de segurança podem levar um tempo", () => {
+  it("separa sair, desconectar a Garmin e apagar a conta (issue #21)", () => {
+    expect(texto).toMatch(/Sair Só encerra a sua sessão\. Nunca apaga dados\./);
+    expect(texto).toMatch(
+      /Desconectar a Garmin Interrompe a sincronização e apaga a chave de acesso, mas mantém o histórico que já veio da Garmin, para você retomar de onde parou se reconectar/,
+    );
+    expect(texto).toMatch(/Apagar minha conta Apaga todos os seus dados no app, na hora\./);
+    // A frase antiga misturava sair e desconectar e prometia apagar tudo.
+    expect(texto).not.toMatch(/desconectar ou sair/i);
+    expect(texto).not.toMatch(/apagada quando você desconectar\b(?! a Garmin)/);
+    expect(texto).not.toMatch(/apagamos seus dados do app imediatamente/);
+  });
+
+  it("quem desconecta fica sabendo como apagar o histórico", () => {
+    expect(texto).toContain("Para apagar esse histórico, use “Apagar minha conta”.");
+  });
+
+  it("explica que revogar na Garmin não é uma ação do app", () => {
+    expect(texto).toMatch(
+      /Se você tirar a permissão pelo site ou pelo app da Garmin, o efeito é o mesmo/,
+    );
+    expect(texto).toMatch(
+      /Isso não é uma ação do Sou Atleta: é uma configuração que fica na sua conta Garmin/,
+    );
+    expect(texto).not.toMatch(/revogar o acesso na própria Garmin/);
+  });
+
+  it("não afirma no presente que a Garmin é avisada: é etapa futura", () => {
+    expect(texto).not.toMatch(/Também avisamos a Garmin/i);
+    expect(texto).toMatch(
+      /Na etapa seguinte \(ainda não ativa\), também avisaremos a Garmin de que você desconectou/,
+    );
+  });
+
+  it("deixa claro que nada é apagado na Garmin: o app só guarda uma cópia", () => {
+    expect(texto).toMatch(
+      /Nada disso apaga algo na Garmin: o app só guarda uma cópia dos seus dados/,
+    );
+  });
+
+  it("diz que os dados ficam até apagar a conta ou 24 meses sem uso, e que uso é entrar no app", () => {
+    expect(texto).toMatch(
+      /Seus dados ficam guardados até você usar “Apagar minha conta” ou até 24 meses sem uso/,
+    );
+    expect(texto).toContain("Conta como uso entrar no app; a sincronização automática não conta.");
+    expect(texto).toMatch(/Antes de apagar por falta de uso, avisamos você por e-mail/);
+    expect(texto).not.toMatch(/ficam guardados enquanto a sua conta estiver conectada/);
+  });
+
+  it("cita o e-mail usado para entrar, só para avisos sobre a conta", () => {
+    expect(texto).toMatch(
+      /guardaremos o e-mail que você usar para entrar, só para avisos sobre a sua conta/,
+    );
+    expect(texto).toMatch(/Não usamos esse e-mail para publicidade/);
+  });
+
+  it("revogar o consentimento apaga a conta, e o pedido por e-mail é tratado como apagar a conta", () => {
+    expect(texto).toMatch(/Você pode revogar \(retirar\) o seu consentimento a qualquer momento/);
+    expect(texto).toMatch(/Se você revogar, paramos de usar os seus dados e apagamos a sua conta/);
+    expect(texto).toMatch(
+      /Se você pedir por e-mail para revogar o consentimento ou o acesso, tratamos o pedido como “Apagar minha conta”: apagamos tudo no app em até 15 dias e avisamos você por e-mail quando terminar/,
+    );
+  });
+
+  it("promete resposta em até 15 dias para pedidos por e-mail, ou antes se a lei exigir prazo menor", () => {
+    expect(texto).toContain(
+      "Quando você pedir por e-mail, respondemos em até 15 dias, ou antes, se a lei exigir prazo menor.",
+    );
+    expect(texto).not.toMatch(/Respondemos nos prazos que a lei prevê/);
+  });
+
+  it("apagar a conta apaga no app, na hora, e a ressalva das cópias de segurança (até 30 dias) vem junto", () => {
     expect(texto).not.toMatch(/apagamos todos os seus dados imediatamente/);
-    expect(texto).toMatch(/Cópias de segurança mantidas pela infraestrutura podem levar um tempo/);
+    expect(texto).toMatch(
+      /Apaga todos os seus dados no app, na hora\. Não dá para desfazer; por isso, antes de apagar, você poderá baixar uma cópia dos seus dados\. Cópias de segurança mantidas pela infraestrutura podem levar até 30 dias para sumir por completo/,
+    );
+    expect(texto).not.toMatch(/prazo exato será\s+informado/);
+  });
+
+  it("explica os termos difíceis na primeira vez em que aparecem", () => {
+    expect(texto.search(/sessão/)).toBeGreaterThan(-1);
+    expect(texto.search(/sessão/)).toBe(texto.search(/sessão, isto é, fecha o seu acesso/));
+    expect(texto.search(/sincronização/)).toBe(
+      texto.search(/sincronização \(o app deixa de buscar dados novos na Garmin\)/),
+    );
+    expect(texto.search(/chave de acesso/)).toBe(
+      texto.search(/chave de acesso \(a autorização que a Garmin deu ao app, sem a sua senha\)/),
+    );
+    expect(texto).not.toMatch(/importado/i);
+  });
+
+  it("traz no Resumo o quadro das três ações, com link para a seção 7", () => {
+    const resumo = marcacao.slice(
+      marcacao.indexOf('class="resumo"'),
+      marcacao.indexOf('id="secao-1"'),
+    );
+    expect(resumo).toContain('href="#secao-7"');
+    expect(resumo).toContain("<dt>Sair</dt>");
+    expect(resumo).toContain("<dt>Desconectar a Garmin</dt>");
+    expect(resumo).toContain("<dt>Apagar minha conta</dt>");
+  });
+
+  it("usa links nas referências a outras seções", () => {
+    expect(texto).not.toMatch(/\bseções? \d/);
+    for (const n of [5, 6, 7]) {
+      expect(marcacao).toContain(`href="#secao-${String(n)}"`);
+    }
+  });
+
+  it("usa o mesmo par de nomes: Conectar a Garmin e Desconectar a Garmin", () => {
+    expect(texto).toContain("“Conectar a Garmin”");
+    expect(texto).not.toMatch(/Conectar com Garmin/);
   });
 
   it("diz a verdade da etapa 1: sem coleta de visitante, sem cookies nas páginas públicas, sem dados de saúde", () => {
     expect(texto).toMatch(/não coleta dados de quem o visita/);
-    expect(texto).toMatch(/não definem cookies e não têm rastreadores nem análise de uso/);
+    expect(texto).toMatch(/não define cookies e não tem rastreadores nem análise de uso/);
     expect(texto).toMatch(/ainda não trata dados de saúde/);
   });
 
   it("diz que os registros de funcionamento do site estão desligados", () => {
-    expect(texto).toMatch(/registros de\s+funcionamento do site estão desligados/);
+    expect(texto).toMatch(/registros de\s+funcionamento desligados/);
     expect(texto).toMatch(/o projeto não guarda registros de quem o visita/);
   });
 
@@ -82,11 +195,12 @@ describe("política de privacidade", () => {
     ]) {
       expect(texto).toMatch(direito);
     }
-    expect(marcacao.match(/<li>/g) ?? []).toHaveLength(9);
+    const lista = /<ul[^>]*aria-label="Direitos do artigo 18 da LGPD">(.*?)<\/ul>/s.exec(marcacao);
+    expect(lista?.[1]?.match(/<li>/g) ?? []).toHaveLength(9);
   });
 
   it("diz por quanto tempo os dados ficam, como são protegidos e como o titular é avisado de incidente", () => {
-    expect(texto).toMatch(/ficam guardados enquanto a sua conta estiver conectada/);
+    expect(texto).toMatch(/Seus dados ficam guardados até você usar/);
     expect(texto).toMatch(/Como vamos protegê-los/);
     expect(texto).toMatch(
       /incidente de segurança que possa trazer risco ou dano a você, avisamos você e a Autoridade Nacional/,
@@ -106,9 +220,15 @@ describe("política de privacidade", () => {
   });
 
   it("marca como 'Ainda não ativo' as partes que dependem do conector Garmin", () => {
-    const marcas = marcacao.match(/Ainda não ativo<\/p>/g) ?? [];
-    // Seções 1, 2, 3, 4, 5, 6, 7 e 8.
-    expect(marcas).toHaveLength(8);
+    const marcas = marcacao.match(/<p class="etiqueta">Ainda não ativo</g) ?? [];
+    // Resumo (quadro das três ações) e seções 1, 2, 3, 4, 5, 6, 7 e 8.
+    expect(marcas).toHaveLength(9);
+  });
+
+  it("a etiqueta 'Ainda não ativo' diz ao leitor de tela até onde vale", () => {
+    expect(marcacao).toContain(
+      '<span class="so-leitor">: o texto a seguir, até o fim desta parte, descreve uma etapa futura.</span>',
+    );
   });
 
   it("mantém o compromisso da IA, da chave Garmin e do consentimento", () => {

@@ -6,11 +6,11 @@ Situação: **planejado**, salvo onde estiver marcado **no ar** ou **implementad
 
 ## Site
 
-| Página                      | Endereço        | Acesso                            | Situação                                                                                                                                                                                |
-| --------------------------- | --------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Início**                  | `/`             | Pública                           | Implementado (issue #4). No ar após o primeiro deploy. Diz o que o app vai oferecer nos três ângulos (no futuro: ele ainda não funciona), o que ele não faz e que está em fase fechada. |
-| **Política de privacidade** | `/privacidade`  | Pública                           | Implementado (issue #4). As 10 seções da decisão 0007, com data de atualização; o que depende da Garmin vem como "Ainda não ativo".                                                     |
-| **Área fechada**            | `/app` e abaixo | Só o dono, pelo Cloudflare Access | Implementado (issue #4). Hoje é uma tela de teste ("Você está dentro"). A Worker recusa quem não tem JWT válido do Access. As telas abaixo vão morar aqui.                              |
+| Página                      | Endereço        | Acesso                            | Situação                                                                                                                                                                                       |
+| --------------------------- | --------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Início**                  | `/`             | Pública                           | Implementado (issue #4). No ar após o primeiro deploy. Diz o que o app vai oferecer nos três ângulos (no futuro: ele ainda não funciona), o que ele não faz e que está em fase fechada.        |
+| **Política de privacidade** | `/privacidade`  | Pública                           | Implementado (issues #4 e #21). As 10 seções da decisão 0007, com data de atualização; o que depende da Garmin vem como "Ainda não ativo". Separa sair, desconectar a Garmin e apagar a conta. |
+| **Área fechada**            | `/app` e abaixo | Só o dono, pelo Cloudflare Access | Implementado (issue #4). Hoje é uma tela de teste ("Você está dentro"). A Worker recusa quem não tem JWT válido do Access. As telas abaixo vão morar aqui.                                     |
 
 ## Momento atual (tela principal)
 
@@ -29,7 +29,7 @@ Situação: **planejado**, salvo onde estiver marcado **no ar** ou **implementad
 
 ## Conta e dados
 
-- **Conexão Garmin:** etapa 1 com a chave do dono no cofre; etapa 2 com "Conectar com Garmin".
+- **Conexão Garmin:** etapa 1 com a chave do dono no cofre; etapa 2 com "Conectar a Garmin".
 - **Atualizar agora:** busca dados novos fora da rotina agendada.
 - **Seus dados:** ver, baixar e apagar tudo.
 - **Consentimento:** tela própria no primeiro acesso.
