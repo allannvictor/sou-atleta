@@ -13,7 +13,7 @@ Definições em `.claude/agents/`. Modelos escolhidos pelo risco do trabalho: os
 | Desenvolvimento            | `desenvolvimento.md`  | Sonnet | alto    |
 | Revisor de código          | `revisor-codigo.md`   | Sonnet | alto    |
 | Segurança e cibersegurança | `seguranca.md`        | Opus   | alto    |
-| Revisor de UX              | `revisor-ux.md`       | Sonnet | médio   |
+| UX e design                | `revisor-ux.md`       | Sonnet | alto    |
 | Revisor de métricas        | `revisor-metricas.md` | Opus   | alto    |
 | Jurídico e conformidade    | `juridico.md`         | Sonnet | alto    |
 | Jardineiro                 | `jardineiro.md`       | Haiku  | baixo   |
@@ -49,3 +49,7 @@ Ao vivo pelo GitHub Projects (passos em `docs/github-projects.md`). A página "R
 ## Custo
 
 O custo zero vale para o app rodando. Os agentes que constroem o app usam o plano do Claude do dono. Rodar agentes direto no GitHub (Claude GitHub Action) normalmente exige chave de API paga; por isso o trabalho roda em sessões do Claude Code.
+
+## Revisão de 15/11/2026: UX e design
+
+O agente `revisor-ux` passa a cobrir, além de linguagem e acessibilidade, usabilidade (heurísticas de Nielsen), intuitividade, hierarquia visual, identidade visual, padrões atuais de mercado e atratividade. Ele **sempre pesquisa na internet** como apps atuais resolvem o mesmo problema antes de revisar ou propor, citando as fontes com data. Esforço sobe de médio para alto. A identidade visual do app é proposta por ele em 2 ou 3 opções e escolhida pelo dono.
