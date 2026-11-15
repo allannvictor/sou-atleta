@@ -29,7 +29,7 @@ Situação: **planejado**, salvo onde estiver marcado **no ar** ou **implementad
 
 ## Conta e dados
 
-- **Conexão Garmin:** etapa 1 com a chave do dono no cofre; etapa 2 com "Conectar com Garmin".
+- **Conexão Garmin:** etapa 1 com a chave do dono no cofre; etapa 2 com "Conectar a Garmin".
 - **Atualizar agora:** busca dados novos fora da rotina agendada.
 - **Seus dados:** ver, baixar e apagar tudo.
 - **Consentimento:** tela própria no primeiro acesso.

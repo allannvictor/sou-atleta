@@ -2,12 +2,12 @@
 
 ## Etapas
 
-| Etapa | Quem usa                                   | Garmin                                                                             | Strava                                                      |
-| ----- | ------------------------------------------ | ---------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| 1     | Só o dono do projeto                       | Chave pessoal (Garmin Connect Personal API)                                        | Não                                                         |
-| 2     | Dono e amigos (beta fechado)               | Login "Conectar com Garmin" pelo nível Starter do Garmin Connect Developer Program | Não                                                         |
-| 3     | Público                                    | Starter, depois Enterprise                                                         | Só cálculos, sem IA, após confirmação por escrito do Strava |
-| 4     | App mobile, outros esportes, outras fontes |                                                                                    |                                                             |
+| Etapa | Quem usa                                   | Garmin                                                                           | Strava                                                      |
+| ----- | ------------------------------------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| 1     | Só o dono do projeto                       | Chave pessoal (Garmin Connect Personal API)                                      | Não                                                         |
+| 2     | Dono e amigos (beta fechado)               | Login "Conectar a Garmin" pelo nível Starter do Garmin Connect Developer Program | Não                                                         |
+| 3     | Público                                    | Starter, depois Enterprise                                                       | Só cálculos, sem IA, após confirmação por escrito do Strava |
+| 4     | App mobile, outros esportes, outras fontes |                                                                                  |                                                             |
 
 ## Garmin, etapa 1
 
