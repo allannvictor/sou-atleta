@@ -2,22 +2,22 @@
 
 ## Stack
 
-| Camada                      | Escolha                                                                  |
-| --------------------------- | ------------------------------------------------------------------------ |
-| Linguagem                   | TypeScript no modo mais rígido                                           |
-| Monorepo                    | pnpm + Turborepo                                                         |
-| Web                         | React + React Router v7 em Cloudflare Workers                            |
-| Interface                   | Tailwind + shadcn/ui                                                     |
-| Banco                       | Cloudflare D1 (SQLite) + Drizzle ORM                                     |
-| Arquivos                    | Cloudflare R2 (arquivos .FIT, mais tarde)                                |
-| Sincronização               | Worker com Cron Trigger                                                  |
-| Validação de dados externos | Zod                                                                      |
-| IA                          | Cloudflare Workers AI (ver 0004)                                         |
-| Testes                      | Vitest, fast-check, Playwright com axe                                   |
-| Qualidade                   | ESLint com regras próprias e regras de camadas, Prettier, secretlint     |
-| CI                          | GitHub Actions (repositório privado: 2.000 minutos/mês gratuitos)        |
-| Acesso fechado (etapa 1)    | Cloudflare Access (gratuito até 50 pessoas)                              |
-| Endereço                    | `souatleta.pages.dev` ou `souatleta.workers.dev`, a confirmar na criação |
+| Camada                      | Escolha                                                                     |
+| --------------------------- | --------------------------------------------------------------------------- |
+| Linguagem                   | TypeScript no modo mais rígido                                              |
+| Monorepo                    | pnpm + Turborepo                                                            |
+| Web                         | React + React Router v7 em Cloudflare Workers                               |
+| Interface                   | Tailwind + shadcn/ui                                                        |
+| Banco                       | Cloudflare D1 (SQLite) + Drizzle ORM                                        |
+| Arquivos                    | Cloudflare R2 (arquivos .FIT, mais tarde)                                   |
+| Sincronização               | Worker com Cron Trigger                                                     |
+| Validação de dados externos | Zod                                                                         |
+| IA                          | Cloudflare Workers AI (ver 0004)                                            |
+| Testes                      | Vitest, fast-check, Playwright com axe                                      |
+| Qualidade                   | ESLint com regras próprias e regras de camadas, Prettier, secretlint        |
+| CI                          | GitHub Actions (repositório privado: 2.000 minutos/mês gratuitos)           |
+| Acesso fechado (etapa 1)    | Cloudflare Access (gratuito até 50 pessoas)                                 |
+| Endereço                    | Worker `sou-atleta`, em `sou-atleta.<subdomínio>.workers.dev` (ver Revisão) |
 
 Tudo no plano gratuito da Cloudflare. Futuro app mobile em React Native/Expo, reaproveitando o `core`.
 
@@ -45,3 +45,11 @@ Garantidas pelo ESLint (`eslint.config.js`), não por combinado:
 ## Versões
 
 Ferramentas fixadas em versões exatas, publicadas há pelo menos duas semanas. TypeScript fica na 6.0 enquanto o typescript-eslint não suportar a 7.
+
+## Revisão de 15/11/2026 (issue #4)
+
+- Endereço definido: um Worker chamado `sou-atleta` em `workers.dev` (não Pages). O subdomínio da conta é escolhido no primeiro deploy. Domínio próprio custa dinheiro e fica fora do escopo.
+- Rotas: `/` e `/privacidade` públicas; `/app` e tudo abaixo fechado pelo Cloudflare Access. A própria Worker também valida o JWT do Access em `/app`, para o acesso fechado não depender só do painel.
+- Saída do build do `apps/web` em `dist/`, como no resto do monorepo.
+- Deploy automático por GitHub Actions ao mesclar na `main`, com os secrets `CLOUDFLARE_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`.
+- React Router fica na **v7** (7.18.x). A documentação da Cloudflare já usa a v8 como padrão; a migração é uma decisão futura, não desta issue.

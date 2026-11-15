@@ -16,9 +16,9 @@ O projeto é fechado e não comercial. Quando o dono avisar que vai virar comerc
 - Revisão da política de privacidade e dos termos por advogado.
 - Planos gratuitos da Cloudflare e do GitHub.
 
-## Política de privacidade (a escrever)
+## Política de privacidade
 
-Texto curto, em linguagem simples, publicado antes do pedido do Starter:
+Publicada em `/privacidade` (issue #4, 15/11/2026), antes do pedido do Starter. Texto curto, em linguagem simples, com estas 10 seções. O texto diz só a verdade da etapa atual: o site não coleta dados do visitante, e tudo que depende do conector Garmin vem marcado "Ainda não ativo", descrevendo o compromisso. **Antes de qualquer dado real entrar, a política é atualizada, com nova data.**
 
 1. Quais dados: atividades, FC, HRV, sono, estresse e perfil de treino vindos da Garmin. Sem senha, nome completo ou GPS na etapa 1.
 2. Para quê: só calcular e explicar as métricas do próprio atleta. Nada é vendido, compartilhado ou usado para publicidade.
@@ -29,10 +29,18 @@ Texto curto, em linguagem simples, publicado antes do pedido do Starter:
 7. Direitos: ver, baixar e apagar tudo com um clique; revogar na Garmin.
 8. Compartilhamento: cards só saem quando o atleta decide.
 9. Aviso de responsabilidade: o app descreve e estima, não recomenda treino e não substitui profissional.
-10. Contato do responsável (e-mail do projeto) e data da última atualização.
+10. Contato do responsável (e-mail do projeto, `souatletaapp@gmail.com`) e data da última atualização.
 
 ## Decisões
 
 - Idade mínima: **18 anos**.
 - Ao desconectar ou sair: **apagar todos os dados imediatamente**.
-- Contato público: e-mail próprio do projeto, a ser criado pelo dono.
+- Contato público: e-mail próprio do projeto, **`souatletaapp@gmail.com`**, visível publicamente no site e na política.
+- Responsável pelo tratamento identificado **só pelo e-mail do projeto, sem nome** (decisão do dono, 15/11/2026, issue #4). A LGPD pede identificar o controlador; o e-mail basta neste estágio. Rever com o advogado antes da fase pública.
+
+## Revisão de 15/11/2026 (issue #4)
+
+- Política publicada no site fechado, em `/privacidade`, com a página inicial `/` também pública. Só `/app` fica atrás do Cloudflare Access.
+- E-mail do projeto definido (`souatletaapp@gmail.com`) e responsável identificado só por ele.
+- A política cita o cookie de sessão do Cloudflare Access, usado apenas na área fechada. As páginas públicas não usam cookies.
+- Texto escrito por agente, sem advogado. A revisão por advogado continua na lista do "Projeto fechado e não comercial", antes da fase pública.
