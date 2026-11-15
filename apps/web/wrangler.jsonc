@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sou-atleta",
+  "main": "./workers/app.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+  // Cloudflare Access: domínio do time e etiqueta AUD da aplicação. Não são segredos
+  // (a etiqueta aparece em todo JWT). Sem os dois preenchidos, a rota /app recusa todo mundo.
+  // Passo a passo para preencher: PR da issue #4.
+  "vars": {
+    "TEAM_DOMAIN": "",
+    "POLICY_AUD": "",
+  },
+  "env": {
+    // Só para os testes de interface (CLOUDFLARE_ENV=teste). Valores de mentira: nenhuma chave
+    // de Access existe para eles, então nenhum JWT consegue ser válido neste ambiente.
+    "teste": {
+      "vars": {
+        "TEAM_DOMAIN": "https://sou-atleta-teste.cloudflareaccess.com",
+        "POLICY_AUD": "etiqueta-aud-de-teste",
+      },
+    },
+  },
+}

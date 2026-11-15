@@ -1,0 +1,13 @@
+# Cabeçalhos dos arquivos estáticos (scripts, estilos). As páginas e as recusas da área fechada
+# recebem os mesmos cabeçalhos pela Worker (app/server/seguranca.ts); um teste confere que os
+# dois lados dizem a mesma coisa. Aqui a CSP é a mais fechada possível: um arquivo estático
+# nunca precisa carregar nada nem ser embutido em outro site.
+/*
+  Strict-Transport-Security: max-age=31536000
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Content-Security-Policy: default-src 'none'; frame-ancestors 'none'
+
+# Arquivos com hash no nome nunca mudam de conteúdo: podem ficar em cache por um ano.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

@@ -1,0 +1,37 @@
+{
+  "name": "@sou-atleta/web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Site do Sou Atleta: página inicial, política de privacidade e área fechada.",
+  "type": "module",
+  "scripts": {
+    "dev": "react-router dev",
+    "build": "react-router build",
+    "typegen": "react-router typegen",
+    "typecheck": "react-router typegen && tsc --build",
+    "test": "vitest run && playwright test --trace off",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test --trace off",
+    "deploy": "react-router build && wrangler deploy"
+  },
+  "dependencies": {
+    "isbot": "5.2.2",
+    "jose": "6.2.14",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-router": "7.18.5",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@cloudflare/vite-plugin": "1.66.0",
+    "@playwright/test": "1.64.1",
+    "@react-router/dev": "7.18.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "fast-check": "4.10.2",
+    "vite": "8.3.5",
+    "vitest": "4.1.12",
+    "wrangler": "4.156.0"
+  }
+}
