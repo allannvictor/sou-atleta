@@ -1,68 +1,30 @@
-import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type JWK } from "jose";
+import { exportJWK, SignJWT } from "jose";
 import fc from "fast-check";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { CABECALHO_JWT, verificarAcesso, type ObterChaves } from "./acesso";
+import {
+  assinar,
+  AUD_DE_TESTE as AUD,
+  AUSENTE,
+  criarChavesDeTeste,
+  KID_DE_TESTE,
+  TIME_DE_TESTE as TIME,
+  type ChavesDeTeste,
+} from "./token-de-teste";
 
-const TIME = "https://sou-atleta-teste.cloudflareaccess.com";
-const AUD = "etiqueta-aud-de-teste";
 const DONO = "dono@exemplo.test";
 const env = { TEAM_DOMAIN: TIME, POLICY_AUD: AUD, EMAILS_PERMITIDOS: DONO };
 const comLista = (EMAILS_PERMITIDOS: unknown) => ({ ...env, EMAILS_PERMITIDOS });
-/** Passe como `email` ou `type` para omitir o campo do token (`undefined` acionaria o padrão). */
-const AUSENTE = Symbol("ausente");
 const MENSAGEM_DE_RECUSA = "Acesso negado: esta área é fechada.";
 
-type ParDeChaves = Awaited<ReturnType<typeof generateKeyPair>>;
-
-let legitima: ParDeChaves;
-let impostora: ParDeChaves;
+let legitima: ChavesDeTeste["legitima"];
+let impostora: ChavesDeTeste["impostora"];
 let obterChaves: ObterChaves;
 
 beforeAll(async () => {
-  legitima = await generateKeyPair("RS256");
-  impostora = await generateKeyPair("RS256");
-  const jwk: JWK = {
-    ...(await exportJWK(legitima.publicKey)),
-    kid: "chave-1",
-    alg: "RS256",
-    use: "sig",
-  };
-  const conjunto = createLocalJWKSet({ keys: [jwk] });
-  obterChaves = () => conjunto;
+  ({ legitima, impostora, obterChaves } = await criarChavesDeTeste());
 });
-
-async function assinar(
-  chave: ParDeChaves["privateKey"],
-  {
-    iss = TIME,
-    aud = AUD,
-    exp = "5m",
-    kid = "chave-1",
-    // `email` e `type` aceitam qualquer valor: os testes precisam de token com e-mail ausente,
-    // vazio ou de tipo errado. `AUSENTE` omite o campo do token.
-    email = DONO,
-    type = "app",
-  }: {
-    iss?: string;
-    aud?: string;
-    exp?: string | number;
-    kid?: string;
-    email?: unknown;
-    type?: unknown;
-  } = {},
-): Promise<string> {
-  return new SignJWT({
-    ...(email === AUSENTE ? {} : { email }),
-    ...(type === AUSENTE ? {} : { type }),
-  })
-    .setProtectedHeader({ alg: "RS256", kid })
-    .setIssuer(iss)
-    .setAudience(aud)
-    .setIssuedAt()
-    .setExpirationTime(exp)
-    .sign(chave);
-}
 
 const pedido = (token?: string) =>
   new Request("https://sou-atleta.exemplo.workers.dev/app", {
@@ -132,7 +94,7 @@ describe("verificarAcesso", () => {
   it("recusa JWT válido na assinatura, mas sem validade (sem exp)", async () => {
     // Sem `requiredClaims`, a jose aceitaria este token para sempre.
     const semExp = await new SignJWT({ email: DONO, type: "app" })
-      .setProtectedHeader({ alg: "RS256", kid: "chave-1" })
+      .setProtectedHeader({ alg: "RS256", kid: KID_DE_TESTE })
       .setIssuer(TIME)
       .setAudience(AUD)
       .setIssuedAt()
@@ -145,7 +107,7 @@ describe("verificarAcesso", () => {
 
   it("recusa JWT válido na assinatura, mas sem data de emissão (sem iat)", async () => {
     const semIat = await new SignJWT({ email: DONO, type: "app" })
-      .setProtectedHeader({ alg: "RS256", kid: "chave-1" })
+      .setProtectedHeader({ alg: "RS256", kid: KID_DE_TESTE })
       .setIssuer(TIME)
       .setAudience(AUD)
       .setExpirationTime("5m")
@@ -172,7 +134,7 @@ describe("verificarAcesso", () => {
       JSON.stringify(await exportJWK(legitima.publicKey)),
     );
     const token = await new SignJWT({})
-      .setProtectedHeader({ alg: "HS256", kid: "chave-1" })
+      .setProtectedHeader({ alg: "HS256", kid: KID_DE_TESTE })
       .setIssuer(TIME)
       .setAudience(AUD)
       .setExpirationTime("5m")
@@ -257,7 +219,7 @@ describe("verificarAcesso: quem entrou (e-mail do JWT contra EMAILS_PERMITIDOS)"
     }
   });
 
-  it("qualquer variação de maiúsculas do e-mail da lista entra (propriedade)", async () => {
+  describe("propriedades sobre o e-mail da lista", () => {
     const alvo = "souatletaapp@gmail.com";
     // Cada letra do endereço vira maiúscula ou não, conforme o sorteio.
     const variacoes = fc
@@ -267,14 +229,40 @@ describe("verificarAcesso: quem entrou (e-mail do JWT contra EMAILS_PERMITIDOS)"
           "",
         ),
       );
-    await fc.assert(
-      fc.asyncProperty(variacoes, variacoes, async (noToken, naLista) => {
-        const token = await assinar(legitima.privateKey, { email: noToken });
-        const resultado = await verificarAcesso(pedido(token), comLista(naLista), obterChaves);
-        expect(resultado).toEqual({ permitido: true });
-      }),
-      { numRuns: 25 },
-    );
+    // Troca UMA letra do endereço por outra letra diferente, em qualquer posição.
+    const comUmaLetraTrocada = fc
+      .tuple(
+        variacoes,
+        fc.integer({ min: 0, max: alvo.length - 1 }),
+        fc.constantFrom(...Array.from("abcdefghijklmnopqrstuvwxyz")),
+      )
+      .filter(([, posicao, nova]) => /[a-z]/.test(alvo[posicao] ?? "") && nova !== alvo[posicao])
+      .map(
+        ([variacao, posicao, nova]) =>
+          `${variacao.slice(0, posicao)}${nova}${variacao.slice(posicao + 1)}`,
+      );
+
+    it("qualquer variação de maiúsculas, no token e na lista, entra", async () => {
+      await fc.assert(
+        fc.asyncProperty(variacoes, variacoes, async (noToken, naLista) => {
+          const token = await assinar(legitima.privateKey, { email: noToken });
+          const resultado = await verificarAcesso(pedido(token), comLista(naLista), obterChaves);
+          expect(resultado).toEqual({ permitido: true });
+        }),
+        { numRuns: 15 },
+      );
+    });
+
+    it("qualquer troca de uma letra do endereço não entra", async () => {
+      await fc.assert(
+        fc.asyncProperty(comUmaLetraTrocada, async (noToken) => {
+          const token = await assinar(legitima.privateKey, { email: noToken });
+          const resultado = await verificarAcesso(pedido(token), comLista(alvo), obterChaves);
+          expect(resultado).toEqual(recusado403);
+        }),
+        { numRuns: 15 },
+      );
+    });
   });
 
   it("a lista cresce só pelo valor da variável: vários e-mails, espaços e vírgulas sobrando", async () => {
@@ -309,16 +297,18 @@ describe("verificarAcesso: quem entrou (e-mail do JWT contra EMAILS_PERMITIDOS)"
       "dono@exemplo.test,intruso@exemplo.test",
       "@exemplo.test",
       "exemplo.test",
-      // O símbolo Kelvin (U+212A) vira "k" em toLowerCase(); aqui não pode contar como "k".
-      "\u212Aim@exemplo.test",
     ];
     for (const email of parecidos) {
       const token = await assinar(legitima.privateKey, { email });
-      const lista = email.startsWith("\u212A") ? "kim@exemplo.test" : DONO;
-      expect(await verificarAcesso(pedido(token), comLista(lista), obterChaves), email).toEqual(
-        recusado403,
-      );
+      expect(await verificarAcesso(pedido(token), env, obterChaves), email).toEqual(recusado403);
     }
+  });
+
+  it("o símbolo Kelvin (U+212A) no token não vale como a letra k da lista", async () => {
+    // `toLowerCase()` converteria o Kelvin em "k" e deixaria entrar um e-mail diferente.
+    const token = await assinar(legitima.privateKey, { email: "\u212Aim@exemplo.test" });
+    const lista = comLista("kim@exemplo.test");
+    expect(await verificarAcesso(pedido(token), lista, obterChaves)).toEqual(recusado403);
   });
 
   it("JWT sem e-mail, com e-mail vazio ou que não é texto: 403", async () => {
@@ -334,6 +324,17 @@ describe("verificarAcesso: quem entrou (e-mail do JWT contra EMAILS_PERMITIDOS)"
       const token = await assinar(legitima.privateKey, { type });
       expect(await verificarAcesso(pedido(token), env, obterChaves)).toEqual(recusado403);
     }
+  });
+
+  it("token de serviço (type app, common_name, sem e-mail): 403", async () => {
+    // Formato do JWT de um token de serviço do Access: também vem com `type` "app", mas sem
+    // `email`. Quem o barra é a falta de e-mail, não o `type`.
+    const token = await assinar(legitima.privateKey, {
+      email: AUSENTE,
+      type: "app",
+      extras: { common_name: "id-do-token-de-servico.access", sub: "" },
+    });
+    expect(await verificarAcesso(pedido(token), env, obterChaves)).toEqual(recusado403);
   });
 
   it("lista ausente, vazia ou malformada: 503 para quem traz JWT, 403 para quem não traz", async () => {
@@ -359,6 +360,19 @@ describe("verificarAcesso: quem entrou (e-mail do JWT contra EMAILS_PERMITIDOS)"
       "dono@exemplo.test,@exemplo.test",
       "dôno@exemplo.test",
       "dono@exemplo.test dono2@exemplo.test",
+      // Erros de colagem no prompt do `wrangler secret put`: aspas, colchetes angulares e barra.
+      '"dono@exemplo.test"',
+      "'dono@exemplo.test'",
+      "<dono@exemplo.test>",
+      "Dono <dono@exemplo.test>",
+      "dono@exemplo.test\\",
+      "dono@exemplo.test;outro@exemplo.test",
+      'dono@exemplo.test,"outro@exemplo.test"',
+      ".dono@exemplo.test",
+      "dono.@exemplo.test",
+      "do..no@exemplo.test",
+      "dono@-exemplo.test",
+      "dono@exemplo_.test",
       42,
       null,
       ["dono@exemplo.test"],
@@ -405,11 +419,9 @@ describe("verificarAcesso: quem entrou (e-mail do JWT contra EMAILS_PERMITIDOS)"
       ),
       await verificarAcesso(pedido(await assinar(impostora.privateKey)), env, obterChaves),
     ];
+    // `recusado403` fixa a mensagem exata, então nenhuma recusa pode citar motivo, e-mail ou lista.
     for (const recusa of recusas) {
       expect(recusa).toEqual(recusado403);
-      if (!recusa.permitido) {
-        expect(recusa.mensagem).not.toMatch(/e-?mail|lista|EMAILS_PERMITIDOS|exemplo|type|app\b/i);
-      }
     }
   });
 

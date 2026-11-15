@@ -9,10 +9,14 @@ import { z } from "zod";
  * Esta checagem é a segunda trava. Fonte:
  * https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/
  *
- * O JWT provar que veio do Access não diz QUEM entrou: "só o dono" mora na política do painel.
+ * Provar que o JWT veio do Access não diz QUEM entrou: "só o dono" mora na política do painel.
  * Se alguém ampliar essa política por engano (Everyone, "Emails ending in", um grupo), o Access
  * passaria a emitir JWT válido a terceiros. Por isso a Worker também confere o e-mail do token
  * contra a lista `EMAILS_PERMITIDOS`: painel e Worker precisam concordar (issue #11).
+ *
+ * Premissa: o JWT não diz qual provedor de login o emitiu, então esta checagem supõe que todo
+ * provedor ligado à aplicação prova a posse do e-mail (hoje, Google e código por e-mail).
+ * Adicionar outro provedor exige revisão de segurança (docs/decisoes/0005-arquitetura.md).
  */
 
 /** Cabeçalho em que o Access entrega o JWT à origem. */
@@ -25,19 +29,32 @@ const MENSAGEM_SEM_CONFIGURACAO =
 /**
  * Só as letras A-Z viram minúsculas. `toLowerCase()` também converteria caracteres que não são
  * ASCII em letras ASCII (o símbolo Kelvin, U+212A, vira "k"), e um e-mail diferente passaria a
- * ser tratado como igual. A lista só aceita ASCII (ver abaixo), então isto basta.
+ * ser tratado como igual. A lista só aceita ASCII (ver `FORMATO_DE_EMAIL`), então isto basta.
  */
 const minusculasAscii = (texto: string): string =>
   texto.replace(/[A-Z]/g, (letra) => letra.toLowerCase());
 
 /**
- * Uma entrada da lista de e-mails permitidos: endereço inteiro, em ASCII, com `@` e domínio com
- * ponto. Nada de curinga (`*@gmail.com`), só domínio (`@gmail.com`) ou texto sem `@`: uma
- * entrada assim vira "termina em", que é exatamente a ampliação por engano que esta trava existe
- * para pegar. Uma entrada ruim invalida a lista inteira (503), em vez de ser ignorada em silêncio.
+ * Uma entrada da lista de e-mails permitidos: endereço inteiro, só com letras minúsculas (a
+ * lista já passou por `minusculasAscii`), dígitos e `. _ % + -`, um `@` e um domínio com ponto.
+ * Por isso a regex também recusa aspas, `<` `>`, barra, vírgula, ponto e vírgula, espaço e
+ * qualquer caractere fora de ASCII.
+ *
+ * Duas razões. (1) Nada de curinga (`*@gmail.com`), só domínio (`@gmail.com`) ou texto sem `@`:
+ * uma entrada assim vira "termina em", que é exatamente a ampliação por engano que esta trava
+ * existe para pegar. (2) Erro de colagem, como o valor entre aspas no prompt do
+ * `wrangler secret put`, tem de aparecer como configuração inválida (503) e não como um 403
+ * igual ao de um intruso, que mandaria o dono procurar a causa errada. Uma entrada ruim
+ * invalida a lista inteira, em vez de ser ignorada em silêncio.
+ *
+ * O conjunto é de propósito mais estreito que a RFC 5322 (que também aceita, por exemplo, `'`).
+ * Se um dia entrar alguém com um desses caracteres, a lista falha alto (503) e a regra se amplia
+ * aqui, com teste.
  */
-const ASCII_IMPRIMIVEL = /^[\x21-\x7E]+$/;
-const FORMATO_DE_EMAIL = /^[^\s@*]+@[^\s@*.]+(?:\.[^\s@*.]+)+$/;
+const PARTE_LOCAL = String.raw`[a-z0-9_%+-]+(?:\.[a-z0-9_%+-]+)*`;
+// Cada rótulo do domínio: letras e dígitos, com hífen só no meio.
+const ROTULO = String.raw`[a-z0-9]+(?:-[a-z0-9]+)*`;
+const FORMATO_DE_EMAIL = new RegExp(`^${PARTE_LOCAL}@${ROTULO}(?:\\.${ROTULO})+$`);
 
 /**
  * `EMAILS_PERMITIDOS`: e-mails separados por vírgula. Espaços e vírgulas sobrando são
@@ -53,7 +70,7 @@ const listaDeEmails = z
       .filter((entrada) => entrada !== "")
       .map(minusculasAscii),
   )
-  .pipe(z.array(z.string().regex(ASCII_IMPRIMIVEL).regex(FORMATO_DE_EMAIL)).min(1));
+  .pipe(z.array(z.string().regex(FORMATO_DE_EMAIL)).min(1));
 
 /**
  * Domínio do time: é o `iss` do token e a origem de onde vêm as chaves públicas.
@@ -108,8 +125,8 @@ const negado = (status: 403 | 503, mensagem: string): ResultadoDoAcesso => ({
 
 /**
  * Só deixa passar quem apresenta um JWT do Access válido para ESTA aplicação (assinatura RS256,
- * emissor `iss`, público `aud`, validade `exp`), de sessão de pessoa (`type` "app") e cujo
- * e-mail está em `EMAILS_PERMITIDOS`. Na dúvida, recusa.
+ * emissor `iss`, público `aud`, validade `exp`), com `type` "app" e e-mail em
+ * `EMAILS_PERMITIDOS`. Na dúvida, recusa.
  *
  * O e-mail só é lido depois de a assinatura ser provada: um token forjado nunca chega a ser
  * comparado com a lista. A comparação ignora maiúsculas e exige o endereço inteiro igual: sem
@@ -148,9 +165,11 @@ export async function verificarAcesso(
       // aceito para sempre. O Access sempre emite os dois.
       requiredClaims: ["exp", "iat"],
     });
-    // `type` "app" é o JWT de sessão de pessoa numa aplicação do Access; recusa qualquer outro
-    // tipo de token que o Access emita. O e-mail ausente, vazio ou que não seja texto nunca
-    // está na lista (a lista não tem entrada vazia), então cai na mesma recusa.
+    // `type` "app" recusa tokens de outros fluxos do Access (por exemplo o de organização), mas
+    // NÃO distingue pessoa de token de serviço: o de serviço também vem com `type` "app". Quem o
+    // barra é a falta de `email` (ele traz `common_name`, sem e-mail). Por isso a checagem de
+    // e-mail abaixo não pode ser afrouxada achando que o `type` já basta. E-mail ausente, vazio
+    // ou que não seja texto nunca está na lista (a lista não tem entrada vazia): mesma recusa.
     const email = payload["email"];
     if (
       payload["type"] !== "app" ||

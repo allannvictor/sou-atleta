@@ -23,9 +23,10 @@
   // EMAILS_PERMITIDOS: quem pode entrar em /app, e-mails separados por vírgula. A Worker confere
   // o e-mail do JWT contra esta lista (a política do painel sozinha não basta). Aqui só cabe o
   // e-mail do projeto, que já é público. E-mail de AMIGO NÃO ENTRA NESTE ARQUIVO: o repositório é
-  // público e o histórico do git é permanente. Para o primeiro amigo, tire esta linha e crie o
-  // secret de mesmo nome (`wrangler secret put EMAILS_PERMITIDOS`), com consentimento e a
-  // política de privacidade atualizada. Um teste falha se houver outro e-mail aqui.
+  // público e o histórico do git é permanente. Para o primeiro amigo, tire só esta linha do topo
+  // (a do ambiente `teste` fica) e crie o secret de mesmo nome, com consentimento e a política
+  // de privacidade atualizada: passo a passo em docs/decisoes/0005-arquitetura.md. Um teste
+  // falha se houver outro e-mail aqui.
   "vars": {
     "TEAM_DOMAIN": "https://broad-term-ec6b.cloudflareaccess.com",
     "POLICY_AUD": "bbb3a6453516e33802697e799fb882d11e43e0ae5eaf8a8375418dd2b6dc6b7e",

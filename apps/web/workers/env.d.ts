@@ -9,6 +9,10 @@
 interface Env {
   readonly TEAM_DOMAIN: string;
   readonly POLICY_AUD: string;
-  /** E-mails com acesso a /app, separados por vírgula. Sem lista válida, ninguém entra. */
-  readonly EMAILS_PERMITIDOS: string;
+  /**
+   * E-mails com acesso a /app, separados por vírgula. Opcional de propósito: quando a lista vira
+   * secret ela pode faltar (secret não criado), e a Worker trata isso como 503. Sem lista
+   * válida, ninguém entra.
+   */
+  readonly EMAILS_PERMITIDOS?: string;
 }
