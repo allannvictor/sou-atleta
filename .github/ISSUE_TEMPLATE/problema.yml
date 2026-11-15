@@ -1,0 +1,19 @@
+name: Problema
+description: Algo que está errado, quebrado ou confuso.
+labels: [agente:desenvolvimento]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: O que aconteceu
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: O que você esperava
+  - type: textarea
+    id: provas
+    attributes:
+      label: Prints ou números
+      description: Opcional. Nunca cole chaves, tokens ou senhas.

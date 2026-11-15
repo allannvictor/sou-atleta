@@ -1,0 +1,16 @@
+name: Ideia
+description: Uma funcionalidade nova ou uma mudança no app.
+labels: [agente:produto]
+body:
+  - type: textarea
+    id: ideia
+    attributes:
+      label: O que você quer
+      description: Escreva do jeito que vier. O agente de produto transforma em especificação e pede sua aprovação antes de qualquer código.
+    validations:
+      required: true
+  - type: textarea
+    id: motivo
+    attributes:
+      label: Por que isso importa
+      description: Opcional. O que você não consegue entender ou fazer hoje.

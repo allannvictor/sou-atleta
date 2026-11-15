@@ -1,0 +1,16 @@
+name: Virar regra
+description: Uma correção feita em um agente que deve virar checagem automática.
+labels: [virar-regra, agente:jardineiro]
+body:
+  - type: textarea
+    id: correcao
+    attributes:
+      label: Qual foi a correção
+      description: O que o agente fez de errado e o que foi corrigido. Link do PR ou comentário.
+    validations:
+      required: true
+  - type: textarea
+    id: como-evitar
+    attributes:
+      label: Como tornar o erro impossível
+      description: Opcional. Regra de lint, teste, tipo ou mudança de API. O jardineiro propõe se ficar em branco.
