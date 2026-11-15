@@ -23,6 +23,7 @@ Este arquivo é curto de propósito. Tudo que dá para verificar automaticamente
 - Comentários explicam o **porquê** de uma regra de negócio ou de uma fórmula, com a fonte. Nunca justificam gambiarra: se precisa de gambiarra, abra uma issue.
 - Toda métrica nova precisa de documento em `docs/metricas/` antes do código.
 - PR traz provas: saída dos testes, prints de tela (celular e desktop, claro e escuro) quando houver interface, resultado da bateria de IA quando mexer no `narrative`.
+- Ao encerrar uma sessão de trabalho que vai continuar em outra, siga `docs/sessoes/README.md`.
 - Quando uma correção sua for apontada por um humano ou revisor, proponha transformá-la em regra automática (issue com rótulo `virar-regra`).
 
 ## Quando parar e perguntar ao dono
