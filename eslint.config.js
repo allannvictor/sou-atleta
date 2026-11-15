@@ -11,7 +11,14 @@ const layerMessage = (layer, reason) =>
 
 export default defineConfig(
   {
-    ignores: ["**/dist/**", "**/coverage/**", "**/.turbo/**", "**/node_modules/**"],
+    ignores: [
+      "**/dist/**",
+      "**/coverage/**",
+      "**/.turbo/**",
+      "**/node_modules/**",
+      // Tipos gerados pelo React Router (`react-router typegen`); não são código nosso.
+      "**/.react-router/**",
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.strictTypeChecked,

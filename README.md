@@ -26,3 +26,5 @@ pnpm check
 ```
 
 `pnpm check` roda formatação, lint, tipos, testes e varredura de segredos. É a mesma checagem do CI.
+
+O site fica em `apps/web` (React Router v7 em Cloudflare Workers). Para rodar localmente: `pnpm --filter @sou-atleta/web dev`. Os testes de interface usam o Chromium do Playwright; em máquinas que já têm um, aponte com `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.

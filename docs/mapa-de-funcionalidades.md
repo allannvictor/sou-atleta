@@ -2,7 +2,15 @@
 
 Vocabulário comum entre o dono e os agentes. Quando alguém disser "a tela Seu normal", todos sabem o que é. Atualizado pelo agente de produto a cada funcionalidade nova.
 
-Situação: **planejado** (nada implementado ainda).
+Situação: **planejado**, salvo onde estiver marcado **no ar** ou **implementado**. Hoje só as páginas do site abaixo existem.
+
+## Site
+
+| Página                      | Endereço        | Acesso                            | Situação                                                                                                                                                                                |
+| --------------------------- | --------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Início**                  | `/`             | Pública                           | Implementado (issue #4). No ar após o primeiro deploy. Diz o que o app vai oferecer nos três ângulos (no futuro: ele ainda não funciona), o que ele não faz e que está em fase fechada. |
+| **Política de privacidade** | `/privacidade`  | Pública                           | Implementado (issue #4). As 10 seções da decisão 0007, com data de atualização; o que depende da Garmin vem como "Ainda não ativo".                                                     |
+| **Área fechada**            | `/app` e abaixo | Só o dono, pelo Cloudflare Access | Implementado (issue #4). Hoje é uma tela de teste ("Você está dentro"). A Worker recusa quem não tem JWT válido do Access. As telas abaixo vão morar aqui.                              |
 
 ## Momento atual (tela principal)
 
