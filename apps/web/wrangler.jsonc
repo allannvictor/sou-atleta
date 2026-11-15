@@ -19,17 +19,28 @@
   // (a etiqueta aparece em todo JWT). A Worker confere o JWT do Access contra esses dois valores;
   // se algum ficar vazio, a rota /app recusa todo mundo. Trocar o nome do time Zero Trust muda o
   // TEAM_DOMAIN (e os endereços de retorno no login do Google): ver docs/decisoes/0005-arquitetura.md.
+  //
+  // EMAILS_PERMITIDOS: quem pode entrar em /app, e-mails separados por vírgula. A Worker confere
+  // o e-mail do JWT contra esta lista (a política do painel sozinha não basta). Aqui só cabe o
+  // e-mail do projeto, que já é público. E-mail de AMIGO NÃO ENTRA NESTE ARQUIVO: o repositório é
+  // público e o histórico do git é permanente. Para o primeiro amigo, tire esta linha e crie o
+  // secret de mesmo nome (`wrangler secret put EMAILS_PERMITIDOS`), com consentimento e a
+  // política de privacidade atualizada. Um teste falha se houver outro e-mail aqui.
   "vars": {
     "TEAM_DOMAIN": "https://broad-term-ec6b.cloudflareaccess.com",
     "POLICY_AUD": "bbb3a6453516e33802697e799fb882d11e43e0ae5eaf8a8375418dd2b6dc6b7e",
+    "EMAILS_PERMITIDOS": "souatletaapp@gmail.com",
   },
   "env": {
     // Só para os testes de interface (CLOUDFLARE_ENV=teste). Valores de mentira: nenhuma chave
-    // de Access existe para eles, então nenhum JWT consegue ser válido neste ambiente.
+    // de Access existe para eles, então nenhum JWT consegue ser válido neste ambiente. A lista de
+    // e-mails também só tem o e-mail do projeto: a regra "nenhum e-mail de terceiros neste
+    // arquivo" vale para o arquivo inteiro.
     "teste": {
       "vars": {
         "TEAM_DOMAIN": "https://sou-atleta-teste.cloudflareaccess.com",
         "POLICY_AUD": "etiqueta-aud-de-teste",
+        "EMAILS_PERMITIDOS": "souatletaapp@gmail.com",
       },
     },
   },
