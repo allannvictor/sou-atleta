@@ -4,7 +4,7 @@
   "description": "Sou Atleta: seus dados de corrida explicados em linguagem simples.",
   "packageManager": "pnpm@10.28.0",
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=22.18.0"
   },
   "type": "module",
   "scripts": {

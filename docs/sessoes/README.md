@@ -10,6 +10,13 @@ O projeto é construído em conversas com o Claude (sessões). Uma sessão tem m
 
 A nova sessão começa lendo `AGENTS.md`, `docs/decisoes/` e o arquivo de passagem mais recente.
 
+**Como o PR de passagem é aberto** (decisão do dono, 16/11/2026): a seção `## Issue` do corpo do PR usa uma destas linhas:
+
+- `Sem issue: passagem de sessão`, quando a passagem não corresponde a uma issue;
+- `Refs #N`, quando houver issue relacionada (sem fechá-la).
+
+A checagem "Referência de fechamento da issue" recusa o PR sem uma dessas linhas.
+
 ## Modelo
 
 ```markdown

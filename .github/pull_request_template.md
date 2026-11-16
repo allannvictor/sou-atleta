@@ -1,6 +1,14 @@
 ## Issue
 
-Fecha #
+<!--
+Escolha UMA linha:
+- Closes #N: o PR fecha a issue ao ser mesclado. O GitHub só reconhece palavras-chave em inglês, por isso não use "Fecha #N". Uma palavra-chave por issue.
+- Refs #N: o PR trata da issue sem fechá-la.
+- Sem issue: <motivo>: não há issue. O motivo é obrigatório (ex.: "Sem issue: passagem de sessão").
+A checagem "Referência de fechamento da issue" confere esta seção.
+-->
+
+Closes #
 
 ## O que muda
 
