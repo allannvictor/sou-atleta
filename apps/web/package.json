@@ -15,7 +15,9 @@
     "deploy": "react-router build && wrangler deploy"
   },
   "dependencies": {
+    "@sou-atleta/core": "workspace:*",
     "@sou-atleta/db": "workspace:*",
+    "@sou-atleta/narrative": "workspace:*",
     "isbot": "5.2.2",
     "jose": "6.2.14",
     "react": "19.3.1",
