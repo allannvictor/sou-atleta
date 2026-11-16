@@ -11,7 +11,7 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "lint": "eslint . --max-warnings 0",
+    "lint": "pnpm --filter @sou-atleta/web typegen && eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "secrets:check": "secretlint \"**/*\"",

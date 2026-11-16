@@ -145,7 +145,7 @@ test.describe("navegação", () => {
       principal.getByText(/Interrompe a sincronização e apaga a chave de acesso/),
     ).toBeVisible();
     await expect(principal.getByText(/Apaga todos os seus dados no app, na hora/)).toBeVisible();
-    await expect(principal.getByText(/podem levar até 30 dias para sumir/)).toBeVisible();
+    await expect(principal.getByText(/podem levar até 7 dias para sumir/)).toBeVisible();
     await expect(principal.getByText(/Nada disso apaga algo na Garmin/)).toBeVisible();
     await expect(principal.getByText(/até 24 meses sem uso/).first()).toBeVisible();
     await expect(

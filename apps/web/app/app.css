@@ -250,3 +250,117 @@ p {
 .acoes dd p:last-child {
   margin-bottom: 0;
 }
+
+/* Quadro "Sua conta Garmin" da área fechada. */
+.painel {
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 0.75rem;
+  padding: 0.25rem 1.25rem 1.25rem;
+  margin-block: 1.5rem;
+}
+
+.aviso {
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+  border-left-width: 0.375rem;
+  border-left-color: var(--destaque);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.aviso h3 {
+  margin: 0 0 0.25rem;
+}
+
+.aviso p {
+  margin: 0;
+}
+
+.retorno {
+  font-weight: 600;
+}
+
+.acao {
+  margin-top: 1rem;
+}
+
+.ajuda {
+  margin: 0.5rem 0 0;
+  font-size: 0.9375rem;
+  color: var(--texto-suave);
+}
+
+/* Botão com área de toque de pelo menos 44px e contraste suficiente nos dois temas. */
+.botao {
+  min-height: 2.75rem;
+  padding: 0.5rem 1.25rem;
+  font: inherit;
+  font-weight: 700;
+  color: var(--fundo);
+  background: var(--destaque);
+  border: 2px solid var(--destaque);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.botao:hover {
+  filter: brightness(1.08);
+}
+
+.botao:focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+  .botao {
+    width: 100%;
+  }
+}
+
+.rotulo {
+  margin: 0 0 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+
+.aviso ol {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+}
+
+.aviso li {
+  margin-bottom: 0.25rem;
+}
+
+.aviso code {
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+/* Lista de descrição do estado: um bloco por informação, sem estilo novo. */
+.situacao {
+  margin: 0 0 1rem;
+}
+
+.situacao > div {
+  margin-bottom: 0.5rem;
+}
+
+.situacao dt {
+  font-weight: 700;
+}
+
+.situacao dd {
+  margin: 0;
+}
+
+.botao[aria-disabled="true"] {
+  opacity: 0.7;
+  cursor: progress;
+}

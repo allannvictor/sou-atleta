@@ -4,10 +4,7 @@ import prettier from "eslint-config-prettier";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
-const internal = (name) => `@sou-atleta/${name}`;
-
-const layerMessage = (layer, reason) =>
-  `Regra de camadas (docs/decisoes/0005-arquitetura.md): ${layer} ${reason}`;
+import { camadas } from "./eslint.camadas.js";
 
 export default defineConfig(
   {
@@ -27,7 +24,7 @@ export default defineConfig(
       globals: { ...globals.node },
       parserOptions: {
         projectService: {
-          allowDefaultProject: ["eslint.config.js"],
+          allowDefaultProject: ["eslint.config.js", "eslint.camadas.js", "eslint.camadas.d.ts"],
         },
         tsconfigRootDir: import.meta.dirname,
       },
@@ -42,63 +39,8 @@ export default defineConfig(
       "@typescript-eslint/consistent-type-imports": "error",
     },
   },
-  {
-    files: ["packages/core/**/*.ts"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              group: ["@sou-atleta/*"],
-              message: layerMessage(
-                "o core",
-                "é cálculo puro e não importa nenhum outro pacote do projeto.",
-              ),
-            },
-            {
-              group: ["node:*"],
-              message: layerMessage(
-                "o core",
-                "não usa APIs do Node: ele roda igual no servidor, na web e no app mobile.",
-              ),
-            },
-          ],
-        },
-      ],
-      "no-restricted-globals": [
-        "error",
-        {
-          name: "fetch",
-          message: layerMessage("o core", "não faz rede. Quem busca dados é o conector."),
-        },
-      ],
-    },
-  },
-  {
-    files: ["packages/narrative/**/*.ts"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              group: [
-                internal("garmin"),
-                internal("db"),
-                `${internal("garmin")}/*`,
-                `${internal("db")}/*`,
-              ],
-              message: layerMessage(
-                "o narrative",
-                "só recebe fatos já calculados pelo core, nunca dados brutos nem credenciais.",
-              ),
-            },
-          ],
-        },
-      ],
-    },
-  },
+  // Regras de camadas: lista de permitidos, em arquivo próprio (testada em packages/garmin).
+  ...camadas,
   {
     files: ["**/*.js"],
     ...tseslint.configs.disableTypeChecked,

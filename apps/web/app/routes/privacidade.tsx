@@ -81,7 +81,9 @@ export default function Privacidade() {
           </li>
           <li>
             está com os registros de funcionamento desligados: o projeto não guarda registros de
-            quem o visita;
+            quem o visita. Só a rotina que busca os dados na Garmin, quando for ligada, vai guardar
+            registros de eventos técnicos, por 3 dias (<RefSecao numero={4} />
+            );
           </li>
           <li>
             ainda não está conectado a nenhuma conta Garmin, então{" "}
@@ -209,6 +211,15 @@ export default function Privacidade() {
           ).
         </p>
         <p>
+          <strong>Registros de funcionamento da sincronização.</strong> A parte do app que busca os
+          seus dados na Garmin (a rotina de sincronização) vai guardar registros de funcionamento no
+          serviço de registros da Cloudflare, por 3 dias. Eles dizem só o que aconteceu, por exemplo
+          &ldquo;um lote de dados chegou da Garmin&rdquo; ou &ldquo;a Garmin pediu para
+          esperar&rdquo;. Nunca levam a sua chave de acesso, a autorização temporária que a Garmin
+          entrega em troca dela, nem dados de saúde. Esses registros existem só nessa rotina: o site
+          que você vê continua sem registros.
+        </p>
+        <p>
           Se houver um incidente de segurança que possa trazer risco ou dano a você, avisamos você e
           a Autoridade Nacional de Proteção de Dados (ANPD), como a lei exige, em prazo razoável. O
           aviso diz o que aconteceu, quais dados foram afetados e o que estamos fazendo. Ele chega
@@ -307,7 +318,7 @@ export default function Privacidade() {
                 apagar, você poderá baixar uma cópia dos seus dados.
               </p>
               <p>
-                Cópias de segurança mantidas pela infraestrutura podem levar até 30 dias para sumir
+                Cópias de segurança mantidas pela infraestrutura podem levar até 7 dias para sumir
                 por completo; elas não são usadas para nenhuma outra finalidade.
               </p>
               <p>

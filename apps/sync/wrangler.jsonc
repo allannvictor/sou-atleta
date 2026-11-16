@@ -1,0 +1,53 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sou-atleta-sync",
+  "main": "./src/index.ts",
+  "compatibility_date": "2026-10-01",
+
+  // Sem endereço público: esta Worker guarda a chave da Garmin e só deve ser alcançada pela
+  // Worker do site, por ligação interna (service binding). Nada de workers.dev, rotas ou
+  // endereços por versão.
+  "workers_dev": false,
+  "preview_urls": false,
+
+  // SEM Cron Trigger (decisão do dono, 16/11/2026): a sincronização roda quando o dono abre a área
+  // fechada e quando aperta "Atualizar agora", sempre pedida pela Worker do site. O teste
+  // src/configuracao.test.ts falha se aparecer `triggers` aqui.
+
+  // Workers Logs LIGADOS só nesta Worker (decisão do dono, 15/11/2026: docs/decisoes/0005). A
+  // Worker do site continua com logs desligados. Os logs daqui levam só eventos fechados (ver
+  // src/log.ts), nunca a chave, o token, cabeçalhos ou dado de saúde. Os registros automáticos
+  // de cada invocação ficam DESLIGADOS: eles incluem dados da requisição que não controlamos.
+  // No plano gratuito os logs ficam 3 dias.
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "logs": { "enabled": true, "invocation_logs": false },
+    // Tracing desligado de propósito: traces registram as subrequests (endereços da Garmin com
+    // datas, consultas ao banco) fora da lista fechada de eventos.
+    "traces": { "enabled": false },
+  },
+
+  // Banco D1 (plano gratuito). O marcador abaixo NÃO é um id de verdade: o dono cria o banco e
+  // troca o marcador pelo id (passo a passo no PR da issue #5 e em docs/decisoes/0005). Enquanto
+  // o marcador estiver aqui, o deploy desta Worker é pulado pelo workflow (deploy.yml) e o
+  // deploy do site, que não depende deste arquivo, segue normal.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sou-atleta",
+      "database_id": "COLOQUE-AQUI-O-ID-DO-D1",
+      "migrations_dir": "../../packages/db/migrations",
+    },
+  ],
+
+  // TRAVA MECÂNICA (decisão do dono, 16/11/2026): enquanto for "nao", a sync NÃO fala com a Garmin,
+  // mesmo com a chave cadastrada, e o painel diz "A sincronização com a Garmin ainda não foi
+  // liberada". Esta linha só muda para "sim" no PR que fechar a #29 (política de privacidade
+  // revista), depois da #22 (Apagar minha conta e Desconectar a Garmin). Um teste confere.
+  "vars": { "POLITICA_REVISTA": "nao" },
+
+  // Segredos (NÃO ficam aqui; cadastre com `wrangler secret put`, só pelo prompt interativo):
+  //   GARMIN_API_KEY         a chave pessoal da Garmin
+  //   GARMIN_CHAVE_VENCE_EM  a data de vencimento dela, AAAA-MM-DD
+}

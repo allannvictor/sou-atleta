@@ -29,7 +29,7 @@ Situação: **planejado**, salvo onde estiver marcado **no ar** ou **implementad
 
 ## Conta e dados
 
-- **Conexão Garmin:** etapa 1 com a chave do dono no cofre; etapa 2 com "Conectar a Garmin".
-- **Atualizar agora:** busca dados novos fora da rotina agendada.
+- **Conexão Garmin:** etapa 1 com a chave do dono no cofre; etapa 2 com "Conectar a Garmin". Conector implementado na issue #5 (aviso da chave e importação do histórico no quadro "Sua conta Garmin" da área fechada); entra em uso quando o dono cadastrar a chave.
+- **Atualizar agora:** busca dados novos fora da rotina agendada. Implementado na issue #5, como botão do quadro "Sua conta Garmin" em `/app`. Abrir `/app` também pede a sincronização (no máximo a cada 10 minutos); não há rotina agendada.
 - **Seus dados:** ver, baixar e apagar tudo.
 - **Consentimento:** tela própria no primeiro acesso.
