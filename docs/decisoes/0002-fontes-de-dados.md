@@ -36,3 +36,7 @@ O atleta não digita nada que a Garmin já sabe. Confirmado na especificação o
 ## Duplicidade
 
 Quem usa Garmin quase sempre sincroniza com o Strava. Quando as duas fontes coexistirem, a mesma atividade precisa ser identificada e unificada.
+
+## Revisão de 16/11/2026 (issue #5): limites da Garmin conferidos
+
+A especificação oficial (Swagger da Personal API) não traz limite de requisições nem resposta 429; traz só o tamanho máximo de janela de alguns endpoints (sono 31 dias, estresse 28, resumo diário 1 ano). O conector usa folgas conservadoras próprias e trata qualquer 429 como "espere". Detalhes, fatos separados de inferências: `docs/pesquisa/garmin-limites-api-2026-11.md`. O estresse e o Body Battery vêm do resumo diário (um pedido por até um ano), e a origem da FC (pulso ou cinta) só é marcada quando a Garmin lista o sensor; sem isso, fica `desconhecido`.

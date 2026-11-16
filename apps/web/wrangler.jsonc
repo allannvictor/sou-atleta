@@ -3,9 +3,11 @@
   "name": "sou-atleta",
   "main": "./workers/app.ts",
   "compatibility_date": "2026-10-01",
-  // Workers Logs desligados (decisão do dono, issue #4): eles guardariam IP e navegador de cada
-  // visita, e a política de privacidade diz que o site não coleta dados do visitante. Só ligue
-  // junto com uma atualização da política. Reavaliar quando o conector da Garmin (#5) chegar.
+  // Workers Logs DESLIGADOS nesta Worker (decisão do dono, issue #4, reafirmada na issue #5): eles
+  // guardariam IP e navegador de cada visita, e a política de privacidade diz que o site não
+  // coleta dados do visitante. Só a Worker de sincronização (apps/sync) liga logs, e lá eles
+  // levam apenas eventos fechados, nunca dado de saúde, chave ou token (docs/decisoes/0005).
+  // Um teste (apps/sync/src/configuracao.test.ts) falha se isto mudar sem a política mudar junto.
   "observability": { "enabled": false },
   // Só o endereço workers.dev principal. Os endereços por versão (Version URLs) ficam ligados
   // por padrão e não passam pelo Access do painel: desligados, só existe um endereço a proteger.
@@ -27,6 +29,19 @@
   // (a do ambiente `teste` fica) e crie o secret de mesmo nome, com consentimento e a política
   // de privacidade atualizada: passo a passo em docs/decisoes/0005-arquitetura.md. Um teste
   // falha se houver outro e-mail aqui.
+  // CONEXÃO COM A GARMIN (issue #5). Os dois blocos abaixo ficam COMENTADOS de propósito: o banco
+  // D1 e a Worker `sou-atleta-sync` só existem depois que o dono os cria, e declarar uma ligação
+  // para algo que não existe faz o deploy automático do site falhar. O site funciona sem eles
+  // (a área fechada diz que a Garmin ainda não foi configurada). Passo a passo para ligar, em
+  // ordem, no PR da issue #5 e em docs/decisoes/0005-arquitetura.md:
+  //   1. o dono cria o D1 e troca o marcador do id em apps/sync/wrangler.jsonc;
+  //   2. o dono tira o `//` das duas linhas abaixo e põe o MESMO id no D1.
+  // O site só LÊ o banco e só PEDE à sync que atualize; ele nunca recebe a chave da Garmin.
+  // Um teste (apps/sync/src/configuracao.test.ts) confere que os dois arquivos combinam.
+  //
+  // "d1_databases": [{ "binding": "DB", "database_name": "sou-atleta", "database_id": "COLOQUE-AQUI-O-ID-DO-D1" }],
+  // "services": [{ "binding": "SYNC", "service": "sou-atleta-sync" }],
+  //
   "vars": {
     "TEAM_DOMAIN": "https://broad-term-ec6b.cloudflareaccess.com",
     "POLICY_AUD": "bbb3a6453516e33802697e799fb882d11e43e0ae5eaf8a8375418dd2b6dc6b7e",

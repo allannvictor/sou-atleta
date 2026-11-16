@@ -1,0 +1,26 @@
+{
+  "name": "@sou-atleta/db",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Esquema do banco (D1 + Drizzle), migrações e leitura do estado da sincronização.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./teste": "./src/teste/d1-em-memoria.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "migracao:gerar": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.4",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261031.1",
+    "drizzle-kit": "0.31.11",
+    "fast-check": "4.10.2",
+    "vitest": "4.1.12"
+  }
+}

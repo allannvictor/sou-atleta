@@ -15,4 +15,16 @@ interface Env {
    * válida, ninguém entra.
    */
   readonly EMAILS_PERMITIDOS?: string;
+  /**
+   * Banco D1 da sincronização (só leitura aqui: quem escreve é a Worker `sync`). Opcional de
+   * propósito: a ligação só existe depois de o dono criar o banco e descomentar o bloco em
+   * wrangler.jsonc; sem ela o site abre normalmente e a área fechada diz que a Garmin ainda não
+   * foi configurada. Passo a passo em docs/decisoes/0005-arquitetura.md.
+   */
+  readonly DB?: D1Database;
+  /**
+   * Ligação interna com a Worker `sync` (botão "Atualizar agora"). Opcional pelo mesmo motivo.
+   * A Worker do site NUNCA recebe a chave da Garmin: ela só pede à `sync` que atualize.
+   */
+  readonly SYNC?: Fetcher;
 }

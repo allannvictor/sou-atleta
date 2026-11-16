@@ -100,6 +100,109 @@ export default defineConfig(
     },
   },
   {
+    // O banco só descreve tabelas e estado: não conhece o conector nem o resto do projeto.
+    files: ["packages/db/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@sou-atleta/*"],
+              message: layerMessage(
+                "o db",
+                "só descreve tabelas e estado; não importa nenhum outro pacote do projeto.",
+              ),
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // O conector fala com a Garmin e valida o que volta; não conhece banco, core nem IA.
+    files: ["packages/garmin/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@sou-atleta/*"],
+              message: layerMessage(
+                "o garmin",
+                "é só o conector: não importa banco, core nem IA, e quem o usa traduz os dados.",
+              ),
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // A chave da Garmin só existe em `garmin` e `sync` (issue #5). O site lê o estado no banco e
+    // chama o sync por ligação interna, mas nunca importa o conector nem vê a chave.
+    files: ["apps/web/**/*.{ts,tsx}", "packages/db/**/*.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "Identifier[name=/^GARMIN_(API_KEY|CHAVE_VENCE_EM)$/], Literal[value=/^GARMIN_(API_KEY|CHAVE_VENCE_EM)$/]",
+          message: layerMessage(
+            "a chave da Garmin",
+            "só existe em packages/garmin e apps/sync; este código nunca a lê.",
+          ),
+        },
+      ],
+    },
+  },
+  {
+    files: ["apps/web/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [internal("garmin"), `${internal("garmin")}/*`],
+              message: layerMessage(
+                "o site",
+                "não importa o conector da Garmin: a chave só existe em garmin e sync.",
+              ),
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // Só o sync usa o conector, e a Garmin falsa (`/teste`) só entra em arquivos de teste.
+    files: ["apps/sync/src/**/*.ts"],
+    ignores: ["**/*.test.ts", "apps/sync/src/teste/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [`${internal("garmin")}/*`, `${internal("db")}/*`],
+              message:
+                "A Garmin falsa e o banco em memória são só para testes (docs/decisoes/0005-arquitetura.md).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // Único arquivo autorizado a escrever em `console`: o registro de eventos da sincronização.
+    // Ele só aceita eventos de uma lista fechada (validada com Zod estrito) e há teste que
+    // garante que nada fora dela, nem segredo, chega ao console.
+    files: ["apps/sync/src/log.ts"],
+    rules: { "no-console": "off" },
+  },
+  {
     files: ["**/*.js"],
     ...tseslint.configs.disableTypeChecked,
   },

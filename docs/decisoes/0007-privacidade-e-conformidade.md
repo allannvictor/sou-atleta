@@ -26,7 +26,7 @@ Publicada em `/privacidade` (issue #4, 15/11/2026), antes do pedido do Starter. 
 4. Onde ficam e como são protegidos: Cloudflare, possivelmente fora do Brasil (transferência internacional informada). Como são protegidos e como o titular é avisado de incidente de segurança (LGPD, art. 48).
 5. IA: Workers AI recebe só números calculados, sem nome nem e-mail.
 6. Credenciais Garmin: na etapa 1, no cofre; na etapa 2, token criptografado apagado ao desconectar a Garmin (o histórico já importado fica).
-7. Direitos: lista do art. 18 da LGPD; ver, baixar e apagar tudo com um clique; revogar na Garmin. "Apagar minha conta" apaga tudo no app na hora e equivale a revogar o consentimento; prazo de resposta de 15 dias para pedidos por e-mail; frase dos menores de 18 anos (issue #21). Cópias técnicas de segurança levam até 30 dias para sumir (ver a rodada de ajustes da issue #21, abaixo).
+7. Direitos: lista do art. 18 da LGPD; ver, baixar e apagar tudo com um clique; revogar na Garmin. "Apagar minha conta" apaga tudo no app na hora e equivale a revogar o consentimento; prazo de resposta de 15 dias para pedidos por e-mail; frase dos menores de 18 anos (issue #21). Cópias técnicas de segurança levam até 7 dias para sumir (revisão de 16/11/2026, issue #5; antes dizia 30).
 8. Compartilhamento: cards só saem quando o atleta decide.
 9. Aviso de responsabilidade: o app descreve e estima, não recomenda treino e não substitui profissional.
 10. Contato do responsável (e-mail do projeto, `souatletaapp@gmail.com`) e data da última atualização.
@@ -43,7 +43,7 @@ Publicada em `/privacidade` (issue #4, 15/11/2026), antes do pedido do Starter. 
 - Política publicada no site fechado, em `/privacidade`, com a página inicial `/` também pública. Só `/app` fica atrás do Cloudflare Access.
 - E-mail do projeto definido (`souatletaapp@gmail.com`) e responsável identificado só por ele.
 - A política cita o cookie de sessão do Cloudflare Access (`CF_Authorization`), usado apenas na área fechada. As páginas públicas não definem cookies.
-- Workers Logs desligados (decisão do dono): o projeto não guarda registros de quem visita. Se forem ligados, a política muda antes.
+- Workers Logs desligados (decisão do dono): o projeto não guarda registros de quem visita. Se forem ligados, a política muda antes. (Revisão de 16/11/2026: ligados só na Worker de sincronização; ver abaixo.)
 - Rodada de ajustes (mesma data): 18 anos ou mais, lista dos direitos do art. 18, retenção, proteção, aviso de incidente, exclusão sem prometer o impossível com cópias de segurança, menos jargão.
 - Texto escrito por agente, sem advogado. A revisão por advogado continua na lista do "Projeto fechado e não comercial", antes da fase pública.
 
@@ -91,3 +91,22 @@ Pendências que seguem para a revisão por advogado (#17) ou para a etapa 2: se 
 - Aviso por e-mail antes de apagar por inatividade, e o e-mail guardado só para avisos da conta (inclusive no consentimento).
 - Revisão por advogado (#17).
 - Reler o acordo da Garmin vigente no pedido do Starter.
+
+## Revisão de 16/11/2026 (issue #5)
+
+Decisões do dono no comentário da issue #5 (15/11/2026), aplicadas no PR do conector.
+
+### A. Cópias de segurança: "até 7 dias" (no lugar de "até 30 dias")
+
+A conta da Cloudflare está no **plano gratuito**. A página de limites do D1 (atualizada em 30/10/2026) diz: Time Travel de 7 dias no Workers Free e 30 no Workers Paid. A política (seção 7, "Apagar minha conta") passa a dizer "até 7 dias", com nova data (16 de novembro de 2026), e os testes impedem a volta de "30 dias". **Se a conta passar para o plano pago, a política volta para revisão** (o prazo real passa a 30 dias). Os arquivos .FIT no R2, quando entrarem, precisam de conferência própria.
+
+### B. Workers Logs só na Worker de sincronização
+
+- Ligados só em `apps/sync` (retenção de 3 dias no plano gratuito); o site continua com logs desligados, e a política segue dizendo que o site não guarda registros de quem o visita.
+- A política (resumo e seção 4) passou a dizer, em linguagem simples e marcado "Ainda não ativo" até a rotina ser ligada: a rotina de sincronização guarda registros de eventos técnicos por 3 dias, no serviço de registros da Cloudflare; eles dizem só o que aconteceu; nunca levam a chave, a autorização temporária da Garmin nem dados de saúde.
+- Garantias técnicas e testes: ver a revisão de 16/11/2026 da decisão 0005.
+- Os registros automáticos de cada invocação ficam desligados na `sync` (decisão de engenharia, não do dono; reversível).
+
+### O que a política ainda diz "Ainda não ativo"
+
+O texto sobre a conexão com a Garmin, o consentimento e "ver, baixar e apagar" continua marcado "Ainda não ativo", porque nada disso funciona até o dono cadastrar a chave. **Antes de cadastrar a chave (dado real entrando), a política precisa ser revista para refletir o que passa a valer** (regra desta decisão: "antes de qualquer dado real entrar, a política é atualizada, com nova data"), e as ações Sair, Desconectar a Garmin e Apagar minha conta (issue #22) devem existir.

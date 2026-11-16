@@ -3,7 +3,8 @@ import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 
 import { EMAIL_DE_CONTATO, POLITICA_ATUALIZADA_EM } from "../config";
-import Area from "./app";
+import { AreaFechada } from "../componentes/area-fechada";
+import { montarPainel } from "../server/garmin";
 import Inicio from "./inicio";
 import Privacidade from "./privacidade";
 
@@ -125,12 +126,41 @@ describe("política de privacidade", () => {
     expect(texto).not.toMatch(/Respondemos nos prazos que a lei prevê/);
   });
 
-  it("apagar a conta apaga no app, na hora, e a ressalva das cópias de segurança (até 30 dias) vem junto", () => {
+  it("apagar a conta apaga no app, na hora, e a ressalva das cópias de segurança (até 7 dias) vem junto", () => {
     expect(texto).not.toMatch(/apagamos todos os seus dados imediatamente/);
     expect(texto).toMatch(
-      /Apaga todos os seus dados no app, na hora\. Não dá para desfazer; por isso, antes de apagar, você poderá baixar uma cópia dos seus dados\. Cópias de segurança mantidas pela infraestrutura podem levar até 30 dias para sumir por completo/,
+      /Apaga todos os seus dados no app, na hora\. Não dá para desfazer; por isso, antes de apagar, você poderá baixar uma cópia dos seus dados\. Cópias de segurança mantidas pela infraestrutura podem levar até 7 dias para sumir por completo/,
     );
     expect(texto).not.toMatch(/prazo exato será\s+informado/);
+  });
+
+  it("cópias de segurança somem em até 7 dias (plano gratuito do D1), não mais 30", () => {
+    expect(texto).toMatch(/podem levar até 7 dias para sumir por completo/);
+    expect(texto).not.toMatch(/30 dias/);
+  });
+
+  it("diz que só a rotina de sincronização guarda registros: eventos, por 3 dias, sem segredo nem saúde", () => {
+    expect(texto).toMatch(/Registros de funcionamento da sincronização\./);
+    expect(texto).toMatch(
+      /guardar registros de funcionamento no serviço de registros da Cloudflare, por 3 dias/,
+    );
+    expect(texto).toMatch(/dizem só o que aconteceu/);
+    expect(texto).toMatch(
+      /Nunca levam a sua chave de acesso, a autorização temporária que a Garmin entrega em troca dela, nem dados de saúde/,
+    );
+    expect(texto).toMatch(/o site que você vê continua sem registros/);
+    // O Resumo avisa, com link para a seção 4.
+    const resumo = marcacao.slice(
+      marcacao.indexOf('class="resumo"'),
+      marcacao.indexOf('id="secao-1"'),
+    );
+    expect(resumo).toMatch(/registros de eventos técnicos, por 3 dias/);
+    expect(resumo).toContain('href="#secao-4"');
+  });
+
+  it("a data da política é a desta revisão (16 de novembro de 2026)", () => {
+    expect(POLITICA_ATUALIZADA_EM.iso).toBe("2026-11-16");
+    expect(texto).toContain("16 de novembro de 2026");
   });
 
   it("explica os termos difíceis na primeira vez em que aparecem", () => {
@@ -299,6 +329,10 @@ describe("página inicial", () => {
 
 describe("área fechada", () => {
   it("mostra 'Você está dentro'", () => {
-    expect(textoVisivel(html(<Area />))).toContain("Você está dentro");
+    expect(
+      textoVisivel(
+        html(<AreaFechada painel={montarPainel(null, new Date(), false)} resultado={null} />),
+      ),
+    ).toContain("Você está dentro");
   });
 });

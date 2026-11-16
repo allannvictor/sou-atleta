@@ -68,6 +68,27 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
         if: steps.secrets.outputs.pronto == 'true'
+      # Worker de sincronização com a Garmin (issue #5). Só é publicada depois de o dono criar o
+      # banco D1 e trocar o marcador do id em apps/sync/wrangler.jsonc. Enquanto o marcador estiver
+      # lá, este passo é pulado e o deploy do site segue normal. Vem ANTES do site porque o site,
+      # depois de ligado, aponta para ela por ligação interna (a Worker precisa existir antes).
+      - name: Conferir se a Worker de sincronização está configurada
+        id: sync
+        if: steps.secrets.outputs.pronto == 'true'
+        run: |
+          if grep -q 'COLOQUE-AQUI-O-ID-DO-D1' apps/sync/wrangler.jsonc; then
+            echo "pronto=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Sincronização não publicada::O id do D1 em apps/sync/wrangler.jsonc ainda é o marcador. Crie o banco e troque o marcador (passo a passo no PR da issue #5)."
+          else
+            echo "pronto=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Deploy da sincronização (wrangler)
+        if: steps.secrets.outputs.pronto == 'true' && steps.sync.outputs.pronto == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: "false"
+        run: pnpm --filter @sou-atleta/sync exec wrangler deploy
       - name: Build
         if: steps.secrets.outputs.pronto == 'true'
         run: pnpm --filter @sou-atleta/web build
