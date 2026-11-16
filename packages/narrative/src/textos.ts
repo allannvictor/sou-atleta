@@ -1,5 +1,6 @@
 import type {
   AvisoDaCarga,
+  PosicaoNoNormal,
   CargaDoTreino,
   DistribuicaoDeIntensidade,
   TendenciaDoVolume,
@@ -121,6 +122,69 @@ export function fraseDaDistribuicao(d: DistribuicaoDeIntensidade): string {
   return `Nos últimos 28 dias, a maior parte do seu tempo foi na zona ${String(maior)} (${numeroInteiro(d.percentualPorZona[maior - 1] ?? 0)}%). Zonas 1 a 5: ${[z1, z2, z3, z4, z5].map((p) => `${numeroInteiro(p)}%`).join(", ")}.`;
 }
 
+export type TipoDeMedida = "ms" | "bpm" | "sono";
+
+/** O valor com a unidade: "52 ms", "49 bpm" ou, para o sono (em segundos), "7 h 12 min". */
+export function medidaComUnidade(tipo: TipoDeMedida, valor: number): string {
+  return tipo === "sono" ? duracao(valor) : `${numeroInteiro(valor)} ${tipo}`;
+}
+
+/** Um dia da lista dos últimos 7 dias: "09/11: 52 ms" ou "09/11: sem medida". */
+export function medidaDoDia(dia: string, tipo: TipoDeMedida, valor: number | null): string {
+  return `${diaEMes(dia)}: ${valor === null ? "sem medida" : medidaComUnidade(tipo, valor)}`;
+}
+
+export interface FatosDoSinal {
+  /** Como a frase começa, por exemplo "Sua FC de repouso hoje". */
+  readonly descricao: string;
+  readonly tipo: TipoDeMedida;
+  /** `null` quando o relógio não mediu. */
+  readonly valor: number | null;
+  /** Frase para quando não há medida, por exemplo "Sem medida de FC de repouso hoje.". */
+  readonly semMedida: string;
+  /** O que falta no "Conhecendo você", por exemplo "de sono". */
+  readonly objetoDoNormal: string;
+  readonly normal:
+    | {
+        readonly tipo: "calculado";
+        readonly media: number;
+        readonly minimo: number;
+        readonly maximo: number;
+      }
+    | { readonly tipo: "conhecendo"; readonly faltamDias: number };
+  /** Posição do valor na faixa, já calculada pelo `core`. */
+  readonly posicao: PosicaoNoNormal | null;
+}
+
+function faixa(tipo: TipoDeMedida, minimo: number, maximo: number): string {
+  if (tipo === "sono") return `de ${duracao(minimo)} a ${duracao(maximo)}`;
+  return `de ${numeroInteiro(minimo)} a ${numeroInteiro(maximo)} ${tipo}`;
+}
+
+/** Frase de um sinal de recuperação: o valor, a posição no seu normal e a diferença. */
+export function fraseDoSinal(fatos: FatosDoSinal): string {
+  if (fatos.normal.tipo === "conhecendo") {
+    return conhecendoVoce(
+      fatos.normal.faltamDias,
+      `${fatos.objetoDoNormal} para formar seu normal`,
+    );
+  }
+  if (fatos.valor === null || fatos.posicao === null) return fatos.semMedida;
+  const { media, minimo, maximo } = fatos.normal;
+  const valor = medidaComUnidade(fatos.tipo, fatos.valor);
+  const intervalo = faixa(fatos.tipo, minimo, maximo);
+  if (fatos.posicao === "dentro") {
+    return `${fatos.descricao}: ${valor}. Está dentro do seu normal (${intervalo}).`;
+  }
+  const direcao = fatos.posicao;
+  const diferenca = Math.abs(fatos.valor - media);
+  const diferencaApareceNoNumero = fatos.tipo === "sono" || Math.round(diferenca) > 0;
+  const complemento = diferencaApareceNoNumero
+    ? `: ${medidaComUnidade(fatos.tipo, diferenca)} ${direcao} da sua média de 30 dias`
+    : "";
+  return `${fatos.descricao}: ${valor}. Está ${direcao} do seu normal (${intervalo})${complemento}.`;
+}
+
 /** Explicações de uma linha, mostradas junto de cada número (0001: termo técnico explicado). */
 export const EXPLICACOES = {
   carga:
@@ -128,6 +192,11 @@ export const EXPLICACOES = {
   base: "Quanto treino você sustenta no longo prazo: a média da sua carga nos últimos 42 dias.",
   cargaRecente: "Quanto treino pesou nos últimos dias: a média da sua carga nos últimos 7 dias.",
   saldo: "A Base menos a Carga recente.",
+  seuNormal:
+    "Seu normal é a faixa em torno da média dos seus últimos 30 dias, calculada com a sua própria variação.",
+  hrv: "A HRV mede a variação do tempo entre os batimentos. Comparamos só com o seu próprio normal, nunca com valores de outras pessoas.",
+  fcRepouso: "Seus batimentos por minuto em repouso.",
+  sono: "Quanto tempo você dormiu.",
   importacaoEmAndamento:
     "Os últimos 3 meses ainda estão chegando da Garmin, então estes números ainda vão mudar.",
 } as const;

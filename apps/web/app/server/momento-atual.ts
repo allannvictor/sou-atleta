@@ -1,16 +1,24 @@
 import {
   calcularForma,
+  calcularSeuNormal,
   cargaDoTreino,
   cargaPorDia,
   distribuicaoDeIntensidade,
   ehCorrida,
+  mediaDosUltimosDias,
+  medidaDeHoje,
+  medidasDoTrecho,
+  posicaoNoNormal,
   treinosQueMaisPesaram,
   treinosSemFc,
   variacaoDaCarga,
   variacaoPercentual,
   volumeSemanal,
   type AtividadeDeCarga,
+  type Dia,
+  type MedidasPorDia,
   type PisosDeZona,
+  type SeuNormal,
   type TreinoComCarga,
 } from "@sou-atleta/core";
 import {
@@ -26,7 +34,10 @@ import {
   fraseDosTreinosFora,
   fraseDoTreino,
   frasesDaTendenciaDoVolume,
+  fraseDoSinal,
+  medidaDoDia,
   diaEMes,
+  type TipoDeMedida,
 } from "@sou-atleta/narrative";
 import {
   criarBanco,
@@ -67,6 +78,17 @@ export interface IntensidadeMostrada {
   readonly zonas: readonly { readonly zona: number; readonly percentual: number }[];
 }
 
+export interface CartaoDeRecuperacao {
+  readonly nome: string;
+  readonly explicacao: string;
+  /** Uma frase por comparação (o sono tem duas: a última noite e a média de 7 dias). */
+  readonly frases: readonly string[];
+  /** Os últimos 7 dias, ao lado do normal: mostra o que aconteceu sem inventar causa (D5). */
+  readonly ultimosDias: readonly string[];
+  /** De onde veio a medida, quando a Garmin informa (só a FC de repouso). */
+  readonly origem: string | null;
+}
+
 export type MomentoAtual =
   | { readonly situacao: "indisponivel" }
   | { readonly situacao: "sem_atividades"; readonly importacaoEmAndamento: boolean }
@@ -85,6 +107,8 @@ export type MomentoAtual =
       readonly tendenciaDoVolume: readonly string[];
       readonly conhecendoOVolume: string | null;
       readonly intensidade: IntensidadeMostrada | null;
+      readonly explicacaoDoNormal: string;
+      readonly recuperacao: readonly CartaoDeRecuperacao[];
     };
 
 /** Pisos da zona de FC do esporte da atividade, ou os padrão da Garmin quando não há. */
@@ -100,6 +124,123 @@ function pisosDaAtividade(tipo: string, zonas: DadosDoMomentoAtual["zonas"]): Pi
     if (achada !== undefined) return achada.pisos;
   }
   return null;
+}
+
+function mapaDeMedidas(
+  linhas: readonly { readonly data: string; readonly valor: number | null }[],
+): MedidasPorDia {
+  const mapa = new Map<Dia, number>();
+  // Valor zero ou negativo é "sem dados" da Garmin: nunca vira medida.
+  for (const { data, valor } of linhas) if (valor !== null && valor > 0) mapa.set(data, valor);
+  return mapa;
+}
+
+function posicaoDe(valor: number | null, normal: SeuNormal) {
+  return valor !== null && normal.tipo === "calculado" ? posicaoNoNormal(valor, normal) : null;
+}
+
+/** Um sinal de recuperação (HRV, FC de repouso ou sono) comparado com o Seu normal. */
+function cartaoDeRecuperacao(
+  nome: string,
+  explicacao: string,
+  tipo: TipoDeMedida,
+  medidas: MedidasPorDia,
+  hoje: Dia,
+  comparacoes: readonly {
+    readonly descricao: string;
+    readonly semMedida: string;
+    readonly valor: number | null;
+  }[],
+  objetoDoNormal: string,
+  origem: string | null,
+): CartaoDeRecuperacao {
+  const normal = calcularSeuNormal(medidas, hoje);
+  const frases = comparacoes.map((c) =>
+    fraseDoSinal({
+      descricao: c.descricao,
+      tipo,
+      valor: c.valor,
+      semMedida: c.semMedida,
+      objetoDoNormal,
+      normal,
+      posicao: posicaoDe(c.valor, normal),
+    }),
+  );
+  return {
+    nome,
+    explicacao,
+    // Enquanto o normal se forma, todas as frases dizem a mesma coisa: mostra uma só.
+    frases: normal.tipo === "conhecendo" ? frases.slice(0, 1) : frases,
+    ultimosDias: medidasDoTrecho(medidas, hoje, 7).map((d) => medidaDoDia(d.dia, tipo, d.valor)),
+    origem,
+  };
+}
+
+const ORIGENS: Readonly<Record<string, string>> = {
+  pulso: "Medida pelo sensor de pulso.",
+  cinta: "Medida pela cinta.",
+};
+
+function montarRecuperacao(dados: DadosDoMomentoAtual, hoje: Dia): readonly CartaoDeRecuperacao[] {
+  const hrv = mapaDeMedidas(dados.hrv.map((d) => ({ data: d.data, valor: d.hrvNoiteMs })));
+  const fc = mapaDeMedidas(dados.resumos.map((d) => ({ data: d.data, valor: d.fcRepouso })));
+  const sono = mapaDeMedidas(dados.sonos.map((d) => ({ data: d.data, valor: d.sonoS })));
+  const origemHoje = dados.resumos.find((d) => d.data === hoje)?.fcRepousoOrigem;
+  return [
+    cartaoDeRecuperacao(
+      "HRV",
+      EXPLICACOES.hrv,
+      "ms",
+      hrv,
+      hoje,
+      [
+        {
+          descricao: "Sua HRV média dos últimos 7 dias",
+          semMedida: "Sem medidas suficientes de HRV nos últimos 7 dias.",
+          valor: mediaDosUltimosDias(hrv, hoje),
+        },
+      ],
+      "de HRV",
+      null,
+    ),
+    cartaoDeRecuperacao(
+      "FC de repouso",
+      EXPLICACOES.fcRepouso,
+      "bpm",
+      fc,
+      hoje,
+      [
+        {
+          descricao: "Sua FC de repouso hoje",
+          semMedida: "Sem medida de FC de repouso hoje.",
+          valor: medidaDeHoje(fc, hoje),
+        },
+      ],
+      "de FC de repouso",
+      origemHoje === undefined ? null : (ORIGENS[origemHoje] ?? null),
+    ),
+    cartaoDeRecuperacao(
+      "Sono",
+      EXPLICACOES.sono,
+      "sono",
+      sono,
+      hoje,
+      [
+        {
+          descricao: "Seu sono na última noite",
+          semMedida: "Sem medida de sono na última noite.",
+          valor: medidaDeHoje(sono, hoje),
+        },
+        {
+          descricao: "Seu sono médio dos últimos 7 dias",
+          semMedida: "Sem medidas suficientes de sono nos últimos 7 dias.",
+          valor: mediaDosUltimosDias(sono, hoje),
+        },
+      ],
+      "de sono",
+      null,
+    ),
+  ];
 }
 
 /** Pura, para testar sem banco: a mesma entrada dá sempre a mesma tela. */
@@ -205,6 +346,8 @@ export function montarMomentoAtual(dados: DadosDoMomentoAtual, agora: Date): Mom
               percentual,
             })),
           },
+    explicacaoDoNormal: EXPLICACOES.seuNormal,
+    recuperacao: montarRecuperacao(dados, hoje),
   };
 }
 

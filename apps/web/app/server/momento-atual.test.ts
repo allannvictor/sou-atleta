@@ -32,6 +32,9 @@ const dados = (dias: number, extra: Partial<DadosDoMomentoAtual> = {}): DadosDoM
   importacaoEmAndamento: false,
   atividades: atividadesSinteticas(dias),
   zonas: [{ esporte: "DEFAULT", pisos: [100, 120, 140, 160, 175] }],
+  hrv: [],
+  resumos: [],
+  sonos: [],
   ...extra,
 });
 
@@ -53,6 +56,13 @@ function todosOsTextos(m: ReturnType<typeof pronto>): string[] {
     ...m.tendenciaDoVolume,
     ...(m.conhecendoOVolume === null ? [] : [m.conhecendoOVolume]),
     ...(m.intensidade === null ? [] : [m.intensidade.frase]),
+    m.explicacaoDoNormal,
+    ...m.recuperacao.flatMap((c) => [
+      ...c.frases,
+      c.explicacao,
+      ...c.ultimosDias,
+      ...(c.origem === null ? [] : [c.origem]),
+    ]),
   ];
 }
 
@@ -157,5 +167,67 @@ describe("Momento atual", () => {
     const m = pronto(montarMomentoAtual(dados(90), AGORA));
     const soma = (m.intensidade?.zonas ?? []).reduce((a, z) => a + z.percentual, 0);
     expect(soma).toBeCloseTo(100, 6);
+  });
+
+  it("recuperação com 40 dias de dados: compara com o Seu normal e mostra os 7 dias", () => {
+    const dias = Array.from({ length: 40 }, (_, i) => somarDias("2026-11-15", -i));
+    const m = pronto(
+      montarMomentoAtual(
+        dados(90, {
+          // HRV estável em 50 ms, com a última semana em 70 ms (acima do normal).
+          hrv: dias.map((data, i) => ({ data, hrvNoiteMs: i < 7 ? 70 : 50 + (i % 2) })),
+          // FC de repouso em torno de 49 bpm, hoje 40 (abaixo).
+          resumos: dias.map((data, i) => ({
+            data,
+            fcRepouso: i === 0 ? 40 : 48 + (i % 3),
+            fcRepousoOrigem: "pulso" as const,
+          })),
+          // Sono de 7 h, com 7 h 30 min nas noites normais e 5 h na última.
+          sonos: dias.map((data, i) => ({
+            data,
+            sonoS: i === 0 ? 18_000 : 25_200 + (i % 3) * 900,
+          })),
+        }),
+        AGORA,
+      ),
+    );
+    const [hrv, fc, sono] = m.recuperacao;
+    expect(m.recuperacao.map((c) => c.nome)).toEqual(["HRV", "FC de repouso", "Sono"]);
+    expect(hrv?.frases[0]).toMatch(
+      /^Sua HRV média dos últimos 7 dias: .* ms\. Está acima do seu normal/,
+    );
+    expect(fc?.frases[0]).toMatch(/^Sua FC de repouso hoje: 40 bpm\. Está abaixo do seu normal/);
+    expect(fc?.origem).toBe("Medida pelo sensor de pulso.");
+    expect(sono?.frases).toHaveLength(2);
+    expect(sono?.frases[0]).toMatch(
+      /^Seu sono na última noite: 5 h 00 min\. Está abaixo do seu normal/,
+    );
+    expect(hrv?.ultimosDias).toHaveLength(7);
+    expect(hrv?.ultimosDias.at(-1)).toBe("15/11: 70 ms");
+  });
+
+  it("recuperação com poucos dias: Conhecendo você, uma frase só, sem inventar normal", () => {
+    const dias = Array.from({ length: 10 }, (_, i) => somarDias("2026-11-15", -i));
+    const m = pronto(
+      montarMomentoAtual(
+        dados(90, { sonos: dias.map((data) => ({ data, sonoS: 25_200 })) }),
+        AGORA,
+      ),
+    );
+    // 10 dias de sono, mas hoje fica fora do normal: só 9 contam, faltam 12 dos 21.
+    const sono = m.recuperacao[2];
+    expect(sono?.frases).toEqual([
+      "Conhecendo você: faltam 12 dias de dados de sono para formar seu normal.",
+    ]);
+    // Sem nenhuma medida de HRV, também é Conhecendo você; nunca vira zero.
+    expect(m.recuperacao[0]?.frases[0]).toContain("faltam 21 dias de dados de HRV");
+  });
+
+  it("valores zero da Garmin ('sem dados') não viram medida", () => {
+    const dias = Array.from({ length: 30 }, (_, i) => somarDias("2026-11-15", -i));
+    const m = pronto(
+      montarMomentoAtual(dados(90, { hrv: dias.map((data) => ({ data, hrvNoiteMs: 0 })) }), AGORA),
+    );
+    expect(m.recuperacao[0]?.frases[0]).toContain("Conhecendo você");
   });
 });

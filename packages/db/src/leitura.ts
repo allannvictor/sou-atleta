@@ -1,7 +1,15 @@
 import { asc } from "drizzle-orm";
 
 import type { Banco } from "./banco.js";
-import { atividade, perfilTreino, progressoImportacao, zonaFc } from "./esquema.js";
+import {
+  atividade,
+  diaHrv,
+  diaResumo,
+  diaSono,
+  perfilTreino,
+  progressoImportacao,
+  zonaFc,
+} from "./esquema.js";
 import type { OrigemDeFc } from "./esquema.js";
 
 /**
@@ -31,6 +39,24 @@ export interface ZonaLida {
   readonly pisos: readonly [number, number, number, number, number];
 }
 
+export interface DiaDeHrvLido {
+  readonly data: string;
+  /** Média da HRV da noite, em milissegundos. */
+  readonly hrvNoiteMs: number | null;
+}
+
+export interface DiaDeResumoLido {
+  readonly data: string;
+  readonly fcRepouso: number | null;
+  readonly fcRepousoOrigem: OrigemDeFc;
+}
+
+export interface DiaDeSonoLido {
+  /** Dia em que você acordou. */
+  readonly data: string;
+  readonly sonoS: number | null;
+}
+
 export interface DadosDoMomentoAtual {
   readonly fusoHorario: string | null;
   /** Primeiro dia da janela de atividades já pedida à Garmin; `null` antes da primeira busca. */
@@ -39,14 +65,33 @@ export interface DadosDoMomentoAtual {
   readonly importacaoEmAndamento: boolean;
   readonly atividades: readonly AtividadeLida[];
   readonly zonas: readonly ZonaLida[];
+  readonly hrv: readonly DiaDeHrvLido[];
+  readonly resumos: readonly DiaDeResumoLido[];
+  readonly sonos: readonly DiaDeSonoLido[];
 }
 
 export async function lerDadosDoMomentoAtual(banco: Banco): Promise<DadosDoMomentoAtual> {
-  const [progresso, perfis, zonas, atividades] = await banco.batch([
+  const [progresso, perfis, zonas, atividades, hrv, resumos, sonos] = await banco.batch([
     banco.select().from(progressoImportacao),
     banco.select({ fusoHorario: perfilTreino.fusoHorario }).from(perfilTreino),
     banco.select().from(zonaFc),
     banco.select().from(atividade).orderBy(asc(atividade.dataLocal), asc(atividade.id)),
+    banco
+      .select({ data: diaHrv.data, hrvNoiteMs: diaHrv.hrvNoiteMs })
+      .from(diaHrv)
+      .orderBy(asc(diaHrv.data)),
+    banco
+      .select({
+        data: diaResumo.data,
+        fcRepouso: diaResumo.fcRepouso,
+        fcRepousoOrigem: diaResumo.fcRepousoOrigem,
+      })
+      .from(diaResumo)
+      .orderBy(asc(diaResumo.data)),
+    banco
+      .select({ data: diaSono.data, sonoS: diaSono.sonoS })
+      .from(diaSono)
+      .orderBy(asc(diaSono.data)),
   ]);
   const doFluxo = progresso.find((p) => p.fluxo === "atividades");
   return {
@@ -67,5 +112,8 @@ export async function lerDadosDoMomentoAtual(banco: Banco): Promise<DadosDoMomen
       esporte: z.esporte,
       pisos: [z.zona1Piso, z.zona2Piso, z.zona3Piso, z.zona4Piso, z.zona5Piso],
     })),
+    hrv,
+    resumos,
+    sonos,
   };
 }

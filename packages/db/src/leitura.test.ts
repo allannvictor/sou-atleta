@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import { criarBanco } from "./banco.js";
-import { gravarAtividade, gravarPerfil, gravarZonaFc, iniciarProgresso } from "./gravacao.js";
+import {
+  gravarAtividade,
+  gravarDiaHrv,
+  gravarDiaResumo,
+  gravarDiaSono,
+  gravarPerfil,
+  gravarZonaFc,
+  iniciarProgresso,
+} from "./gravacao.js";
 import { lerDadosDoMomentoAtual } from "./leitura.js";
 import { criarD1EmMemoria } from "./teste/d1-em-memoria.js";
 
@@ -16,6 +24,9 @@ describe("leitura do Momento atual", () => {
       importacaoEmAndamento: false,
       atividades: [],
       zonas: [],
+      hrv: [],
+      resumos: [],
+      sonos: [],
     });
   });
 
@@ -71,5 +82,24 @@ describe("leitura do Momento atual", () => {
     expect(dados.fusoHorario).toBe("America/Sao_Paulo");
     expect(dados.inicioDasAtividades).toBe("2026-08-17");
     expect(dados.importacaoEmAndamento).toBe(true);
+  });
+
+  it("devolve HRV, FC de repouso e sono por dia, em ordem", async () => {
+    const banco = criarBanco(criarD1EmMemoria().d1);
+    await banco.batch([
+      gravarDiaHrv(banco, { data: "2026-11-02", hrvNoiteMs: 55 }, AGORA),
+      gravarDiaHrv(banco, { data: "2026-11-01", hrvNoiteMs: 50 }, AGORA),
+      gravarDiaResumo(banco, { data: "2026-11-01", fcRepouso: 49 }, AGORA),
+      gravarDiaSono(banco, { data: "2026-11-01", sonoS: 25_200 }, AGORA),
+    ]);
+    const dados = await lerDadosDoMomentoAtual(banco);
+    expect(dados.hrv).toEqual([
+      { data: "2026-11-01", hrvNoiteMs: 50 },
+      { data: "2026-11-02", hrvNoiteMs: 55 },
+    ]);
+    expect(dados.resumos).toEqual([
+      { data: "2026-11-01", fcRepouso: 49, fcRepousoOrigem: "desconhecido" },
+    ]);
+    expect(dados.sonos).toEqual([{ data: "2026-11-01", sonoS: 25_200 }]);
   });
 });
