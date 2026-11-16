@@ -4,6 +4,9 @@
   "private": true,
   "description": "Confere se a descrição de um PR fecha a issue certa (palavras-chave em inglês do GitHub).",
   "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

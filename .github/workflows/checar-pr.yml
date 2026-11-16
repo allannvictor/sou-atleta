@@ -8,12 +8,17 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: checar-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   referencia-de-fechamento:
     name: Referência de fechamento da issue
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    if: github.event.pull_request.base.ref == 'main'
+    # PRs do Dependabot têm corpo gerado e não seguem o modelo.
+    if: github.event.pull_request.base.ref == 'main' && github.event.pull_request.user.login != 'dependabot[bot]'
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -23,7 +28,7 @@ jobs:
           node-version-file: .nvmrc
           # Sem pnpm neste job: o cache do setup-node procuraria o pnpm e falharia.
           package-manager-cache: false
-      - name: Conferir Closes #N e Refs #N
+      - name: Conferir Closes #N, Refs #N e Sem issue
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: node tools/checar-pr/src/cli.ts
