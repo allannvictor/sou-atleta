@@ -38,6 +38,16 @@ describe("quadro Como você está", () => {
       tendenciaDoVolume: [],
       conhecendoOVolume: "Conhecendo você: a tendência aparece depois de 8 semanas de dados.",
       intensidade: { frase: "Zona 2 (62%).", zonas: [{ zona: 2, percentual: 62 }] },
+      explicacaoDoNormal: "Seu normal é a faixa em torno da média dos seus últimos 30 dias.",
+      recuperacao: [
+        {
+          nome: "FC de repouso",
+          explicacao: "Seus batimentos por minuto em repouso.",
+          frases: ["Sua FC de repouso hoje: 53 bpm. Está acima do seu normal (de 47 a 52 bpm)."],
+          ultimosDias: ["09/11: 52 bpm", "10/11: sem medida"],
+          origem: "Medida pelo sensor de pulso.",
+        },
+      ],
     });
     for (const trecho of [
       "Como você está",
@@ -49,6 +59,12 @@ describe("quadro Como você está", () => {
       "Variação da carga",
       "Semana de 09/11 (em andamento):",
       "Zona 2 62%",
+      "Recuperação",
+      "Seu normal é a faixa em torno da média",
+      "Está acima do seu normal (de 47 a 52 bpm).",
+      "Medida pelo sensor de pulso.",
+      "Últimos 7 dias",
+      "10/11: sem medida",
     ]) {
       expect(t).toContain(trecho);
     }

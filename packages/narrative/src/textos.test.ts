@@ -16,6 +16,10 @@ import {
   fraseDosTreinosFora,
   fraseDoTreino,
   frasesDaTendenciaDoVolume,
+  fraseDoSinal,
+  medidaComUnidade,
+  medidaDoDia,
+  type FatosDoSinal,
 } from "./textos.js";
 
 describe("frases de exemplo", () => {
@@ -169,6 +173,98 @@ describe("propriedade: nenhuma frase gerada recomenda, julga nem fala de risco",
               carga: { tipo: "sem_fc" },
             }),
           ].every(aprovada);
+        },
+      ),
+    );
+  });
+});
+
+describe("recuperação: frases dos sinais", () => {
+  const normal = { tipo: "calculado" as const, media: 49, minimo: 46.5, maximo: 51.5 };
+  const base: FatosDoSinal = {
+    descricao: "Sua FC de repouso hoje",
+    tipo: "bpm",
+    valor: 53,
+    semMedida: "Sem medida de FC de repouso hoje.",
+    objetoDoNormal: "de FC de repouso",
+    normal,
+    posicao: "acima",
+  };
+
+  it("exemplo da especificação: 53 bpm contra média 49 fica acima do normal, com a diferença", () => {
+    expect(fraseDoSinal(base)).toBe(
+      "Sua FC de repouso hoje: 53 bpm. Está acima do seu normal (de 47 a 52 bpm): 4 bpm acima da sua média de 30 dias.",
+    );
+  });
+
+  it("dentro do normal não repete a diferença", () => {
+    expect(fraseDoSinal({ ...base, valor: 50, posicao: "dentro" })).toBe(
+      "Sua FC de repouso hoje: 50 bpm. Está dentro do seu normal (de 47 a 52 bpm).",
+    );
+  });
+
+  it("sono usa horas e minutos", () => {
+    expect(
+      fraseDoSinal({
+        descricao: "Seu sono na última noite",
+        tipo: "sono",
+        valor: 6 * 3600 + 30 * 60,
+        semMedida: "Sem medida de sono na última noite.",
+        objetoDoNormal: "de sono",
+        normal: { tipo: "calculado", media: 7 * 3600, minimo: 6.5 * 3600 + 60, maximo: 7.5 * 3600 },
+        posicao: "abaixo",
+      }),
+    ).toBe(
+      "Seu sono na última noite: 6 h 30 min. Está abaixo do seu normal (de 6 h 31 min a 7 h 30 min): 30 min abaixo da sua média de 30 dias.",
+    );
+  });
+
+  it("Conhecendo você e sem medida", () => {
+    expect(
+      fraseDoSinal({
+        ...base,
+        normal: { tipo: "conhecendo", faltamDias: 6 },
+        objetoDoNormal: "de sono",
+      }),
+    ).toBe("Conhecendo você: faltam 6 dias de dados de sono para formar seu normal.");
+    expect(fraseDoSinal({ ...base, valor: null, posicao: null })).toBe(
+      "Sem medida de FC de repouso hoje.",
+    );
+  });
+
+  it("lista dos últimos dias", () => {
+    expect(medidaDoDia("2026-11-09", "ms", 52)).toBe("09/11: 52 ms");
+    expect(medidaDoDia("2026-11-10", "ms", null)).toBe("10/11: sem medida");
+    expect(medidaComUnidade("sono", 7 * 3600 + 12 * 60)).toBe("7 h 12 min");
+  });
+
+  it("propriedade: nenhuma frase de sinal recomenda, julga nem fala de risco", () => {
+    const tipo = fc.constantFrom("ms" as const, "bpm" as const, "sono" as const);
+    const posicao = fc.constantFrom("abaixo" as const, "dentro" as const, "acima" as const);
+    fc.assert(
+      fc.property(
+        tipo,
+        posicao,
+        fc.double({ min: 20, max: 30_000, noNaN: true }),
+        fc.double({ min: 0, max: 5_000, noNaN: true }),
+        fc.integer({ min: 1, max: 21 }),
+        (t, p, v, largura, faltam) => {
+          const fatos: FatosDoSinal = {
+            descricao: t === "sono" ? "Seu sono na última noite" : "Sua medida de hoje",
+            tipo: t,
+            valor: v,
+            semMedida: "Sem medida hoje.",
+            objetoDoNormal: "de sono",
+            normal: { tipo: "calculado", media: v, minimo: v - largura, maximo: v + largura },
+            posicao: p,
+          };
+          return [
+            fraseDoSinal(fatos),
+            fraseDoSinal({ ...fatos, normal: { tipo: "conhecendo", faltamDias: faltam } }),
+            medidaDoDia("2026-11-10", t, v),
+          ].every(
+            (frase) => verificarLinguagem(frase).length === 0 && frasesLongas(frase).length === 0,
+          );
         },
       ),
     );

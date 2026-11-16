@@ -450,3 +450,22 @@ p {
   height: 100%;
   background: var(--destaque);
 }
+
+.cartao-forma h4 {
+  font-size: 1.125rem;
+  margin: 0 0 0.5rem;
+}
+
+.cartao-forma summary {
+  cursor: pointer;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  color: var(--destaque);
+}
+
+.cartao-forma summary:focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: 2px;
+  border-radius: 2px;
+}

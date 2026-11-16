@@ -113,6 +113,29 @@ function Pronto({ momento }: { readonly momento: Extract<MomentoAtual, { situaca
           </ul>
         </>
       )}
+
+      <h3 className="subtitulo">Recuperação</h3>
+      <p className="texto-suave">{momento.explicacaoDoNormal}</p>
+      <ul className="cartoes-forma">
+        {momento.recuperacao.map((cartao) => (
+          <li key={cartao.nome} className="cartao-forma">
+            <h4>{cartao.nome}</h4>
+            {cartao.frases.map((frase) => (
+              <p key={frase}>{frase}</p>
+            ))}
+            <p className="texto-suave">{cartao.explicacao}</p>
+            {cartao.origem === null ? null : <p className="texto-suave">{cartao.origem}</p>}
+            <details>
+              <summary>Últimos 7 dias</summary>
+              <ul className="lista-simples">
+                {cartao.ultimosDias.map((dia) => (
+                  <li key={dia}>{dia}</li>
+                ))}
+              </ul>
+            </details>
+          </li>
+        ))}
+      </ul>
     </>
   );
 }
