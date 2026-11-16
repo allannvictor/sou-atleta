@@ -113,6 +113,7 @@ describe("trava de execução", () => {
         executou: true,
         pausaAte: null,
         falhasDeLimiteSeguidas: 0,
+        itensIgnorados: 2,
       },
       "2026-11-15T10:07:00.000Z",
     );
@@ -122,6 +123,7 @@ describe("trava de execução", () => {
       travaAte: null,
       ultimoSucessoEm: "2026-11-15T10:07:00.000Z",
       ultimaExecucaoEm: "2026-11-15T10:07:00.000Z",
+      itensIgnorados: 2,
     });
     expect(foto.perfil).toBeNull();
   });

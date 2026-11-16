@@ -93,8 +93,18 @@ export interface PaginaDeAtividades extends JanelaDeDatas {
   readonly limite?: number;
 }
 
+/** Uma página de atividades: os itens válidos e quantos a Garmin mandou de fato. */
+export interface ResultadoDePagina {
+  readonly itens: AtividadeGarmin[];
+  /**
+   * Tamanho da resposta BRUTA. É ele (e não `itens.length`, que já não tem os itens descartados)
+   * que diz se pode haver mais uma página: página cheia = pode haver mais.
+   */
+  readonly recebidas: number;
+}
+
 export interface ClienteGarmin {
-  atividades(pagina: PaginaDeAtividades): Promise<AtividadeGarmin[]>;
+  atividades(pagina: PaginaDeAtividades): Promise<ResultadoDePagina>;
   origemDeFc(atividadeId: number): Promise<OrigemDeFc>;
   zonasDeFc(): Promise<ZonaFcGarmin[]>;
   perfil(): Promise<PerfilGarmin>;
@@ -103,6 +113,8 @@ export interface ClienteGarmin {
   resumosDiarios(janela: JanelaDeDatas): Promise<DiaResumoGarmin[]>;
   /** Quantas requisições HTTP já foram feitas (inclui a troca da chave por token). */
   requisicoesFeitas(): number;
+  /** Quantos itens inválidos este cliente já descartou (só a contagem, nunca o conteúdo). */
+  itensDescartados(): number;
 }
 
 /** Recusa janela maior que a configurada para o fluxo: protege contra erro de quem chama. */
@@ -146,6 +158,7 @@ export function criarClienteGarmin(opcoes: OpcoesDoCliente): ClienteGarmin {
   const aoDescartar = opcoes.aoDescartar ?? (() => undefined);
 
   let requisicoes = 0;
+  let descartadosNoTotal = 0;
   let ultimaRequisicaoEm: number | null = null;
 
   /**
@@ -313,6 +326,7 @@ export function criarClienteGarmin(opcoes: OpcoesDoCliente): ClienteGarmin {
     if (validos.length === 0 && brutos.length >= MINIMO_PARA_ERRO_DE_FORMATO) {
       throw new RespostaInesperadaError(endpoint, ["itens"]);
     }
+    descartadosNoTotal += descartados;
     aoDescartar(fluxo, descartados);
     return validos;
   }
@@ -332,7 +346,10 @@ export function criarClienteGarmin(opcoes: OpcoesDoCliente): ClienteGarmin {
         listaDeAtividadesBruta,
         { vazioEm204: [] },
       );
-      return itensValidos(brutos, itemDeAtividade, "atividades", endpoint);
+      return {
+        itens: itensValidos(brutos, itemDeAtividade, "atividades", endpoint),
+        recebidas: brutos.length,
+      };
     },
 
     async origemDeFc(atividadeId) {
@@ -407,5 +424,6 @@ export function criarClienteGarmin(opcoes: OpcoesDoCliente): ClienteGarmin {
     },
 
     requisicoesFeitas: () => requisicoes,
+    itensDescartados: () => descartadosNoTotal,
   };
 }

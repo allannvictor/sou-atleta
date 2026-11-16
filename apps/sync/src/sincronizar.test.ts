@@ -484,6 +484,47 @@ describe("item inválido não derruba a janela", () => {
     const foto = await lerFotoDaSincronizacao(a.banco);
     expect(foto.progresso.every((x) => x.historicoCompleto)).toBe(true);
     expect(foto.estado?.erroCodigo).toBeNull(); // não é erro: foi um item isolado
+    expect(foto.estado?.itensIgnorados).toBe(1); // mas fica registrado, para o quadro avisar
+  });
+
+  it("a contagem soma itens descartados de janelas diferentes, sem contar a mesma janela duas vezes", async () => {
+    const a = montarAmbiente({
+      dados: {
+        atividades: [
+          atividadeBruta(1, "2026-08-18", { duration: "x" }),
+          atividadeBruta(2, "2026-08-19", { duration: "y" }),
+          atividadeBruta(3, "2026-10-20", { duration: "z" }),
+          atividadeBruta(4, "2026-10-21"),
+        ],
+        diasDeSaude: diasSeguidos("2026-08-17", 91),
+      },
+    });
+    await abrirAteCompletar(a);
+    await sincronizar(a.dependencias(), "manual"); // relê os últimos dias: não recontar o antigo
+    const foto = await lerFotoDaSincronizacao(a.banco);
+    expect(foto.estado?.itensIgnorados).toBe(3);
+  });
+
+  it("janela com mais de 20 atividades e um item inválido na PRIMEIRA página importa todas as páginas", async () => {
+    const muitas = Array.from({ length: 45 }, (_, i) =>
+      atividadeBruta(
+        7000 + i,
+        `2026-08-${String(18 + (i % 10)).padStart(2, "0")}`,
+        i === 0 ? { duration: "muito" } : {},
+      ),
+    );
+    const a = montarAmbiente({
+      dados: { atividades: muitas, diasDeSaude: diasSeguidos("2026-08-17", 91) },
+    });
+    await abrirAteCompletar(a);
+    const ids = (await a.banco.select({ id: atividade.id }).from(atividade)).map((l) => l.id);
+    expect(ids).toHaveLength(44); // 45 menos o inválido: nenhuma página ficou para trás
+    expect(ids).not.toContain(7000);
+    const paginas = a.garmin.requisicoes.filter(
+      (r) => r.consulta["startDate"] === "2026-08-17" && r.caminho.includes("activities"),
+    );
+    expect(paginas.map((r) => r.consulta["start"])).toEqual(["0", "20", "40"]);
+    expect((await lerFotoDaSincronizacao(a.banco)).estado?.itensIgnorados).toBe(1);
   });
 });
 

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "39f90209-6cc8-4dc3-aee6-72a24f4b2505",
+  "id": "70197566-301b-48d0-94fa-c7e00fe8fb7e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "atividade": {
@@ -592,6 +592,14 @@
         },
         "falhas_de_limite_seguidas": {
           "name": "falhas_de_limite_seguidas",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "itens_ignorados": {
+          "name": "itens_ignorados",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,

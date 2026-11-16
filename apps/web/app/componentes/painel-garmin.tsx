@@ -168,12 +168,14 @@ export interface PainelGarminProps {
   readonly resultado: ResultadoDaAtualizacao | null;
   /** A abertura da página acabou de pedir uma sincronização. */
   readonly buscaPedida?: boolean;
-  /** Só para os prints e testes: começa no estado "Atualizando…" (o clique já foi dado). */
-  readonly enviandoInicialmente?: boolean;
 }
 
 /** Texto da importação dos 3 meses, conforme anda ou por que parou. */
-function textoDaImportacao(importacao: ProgressoDaImportacao, pausadaAte: string | null): string {
+function textoDaImportacao(
+  importacao: ProgressoDaImportacao,
+  pausadaAte: string | null,
+  problema: PainelDaGarmin["problema"],
+): string {
   const trazido =
     importacao.ate === null
       ? ""
@@ -183,8 +185,13 @@ function textoDaImportacao(importacao: ProgressoDaImportacao, pausadaAte: string
       return `A importação está parada até a chave funcionar.${trazido}`;
     case "conector":
       return `A importação está parada até o app ser ajustado.${trazido}`;
-    case "espera":
-      return `A importação está pausada${pausadaAte === null ? "" : ` até ${horaCurta(pausadaAte)}`}; o botão Atualizar agora funciona antes disso.${trazido}`;
+    case "espera": {
+      const ate = pausadaAte === null ? "" : ` até ${horaCurta(pausadaAte)}`;
+      // Na pausa por limite da Garmin o botão também espera; nas outras pausas ele funciona.
+      return problema === "limite_garmin"
+        ? `A importação está pausada${ate}.${trazido}`
+        : `A importação está pausada${ate}; o botão Atualizar agora funciona antes disso.${trazido}`;
+    }
     case null:
       return importacao.ate === null
         ? "Trazendo seus últimos 3 meses."
@@ -192,13 +199,57 @@ function textoDaImportacao(importacao: ProgressoDaImportacao, pausadaAte: string
   }
 }
 
-export function PainelGarmin({
+/**
+ * Botão "Atualizar agora" e o texto de ajuda dele. Só apresenta: quem sabe se o pedido está em
+ * andamento é o painel (`enviando`). Usado pelo painel, pelos testes e pelos prints.
+ */
+export function BotaoAtualizar({ enviando }: { readonly enviando: boolean }) {
+  return (
+    <>
+      <button
+        type="submit"
+        className="botao"
+        aria-disabled={enviando}
+        aria-describedby="ajuda-do-botao"
+      >
+        {enviando ? "Atualizando…" : "Atualizar agora"}
+      </button>
+      <p className="ajuda" id="ajuda-do-botao">
+        O app já busca dados novos sozinho quando você abre esta página. Use o botão se quiser
+        adiantar.
+      </p>
+    </>
+  );
+}
+
+/** Painel com o estado do botão: o primeiro toque envia; enquanto espera, não dispara de novo. */
+export function PainelGarmin(props: PainelGarminProps) {
+  const [enviando, setEnviando] = useState(false);
+  return (
+    <QuadroGarmin
+      {...props}
+      enviando={enviando}
+      aoEnviar={(evento) => {
+        if (enviando) evento.preventDefault();
+        else setEnviando(true);
+      }}
+    />
+  );
+}
+
+interface QuadroGarminProps extends PainelGarminProps {
+  readonly enviando: boolean;
+  readonly aoEnviar: (evento: React.SyntheticEvent<HTMLFormElement>) => void;
+}
+
+/** O quadro inteiro, sem estado: o mesmo que o painel mostra, usado também pelos prints. */
+export function QuadroGarmin({
   painel,
   resultado,
   buscaPedida = false,
-  enviandoInicialmente = false,
-}: PainelGarminProps) {
-  const [enviando, setEnviando] = useState(enviandoInicialmente);
+  enviando,
+  aoEnviar,
+}: QuadroGarminProps) {
   const aviso = painel.aviso === null ? null : textoDoAviso(painel.aviso, painel.chaveVenceEm);
   const problemaDoConector = painel.problema === "token_recusado";
 
@@ -289,7 +340,7 @@ export function PainelGarmin({
           {painel.importacao?.emAndamento === true && (
             <div>
               <dt>Últimos 3 meses</dt>
-              <dd>{textoDaImportacao(painel.importacao, painel.pausadaAte)}</dd>
+              <dd>{textoDaImportacao(painel.importacao, painel.pausadaAte, painel.problema)}</dd>
             </div>
           )}
           {painel.importacao?.emAndamento === false && (
@@ -336,29 +387,17 @@ export function PainelGarmin({
         </p>
       )}
 
+      {painel.itensIgnorados > 0 && (
+        <p className="ajuda">
+          {painel.itensIgnorados === 1
+            ? "1 item da Garmin veio num formato que o app ainda não entende e ficou de fora."
+            : `${String(painel.itensIgnorados)} itens da Garmin vieram num formato que o app ainda não entende e ficaram de fora.`}
+        </p>
+      )}
+
       {painel.podeAtualizar && (
-        <form
-          method="post"
-          action="/app"
-          className="acao"
-          onSubmit={(evento) => {
-            // Um toque só: enquanto espera, o botão não dispara de novo.
-            if (enviando) evento.preventDefault();
-            else setEnviando(true);
-          }}
-        >
-          <button
-            type="submit"
-            className="botao"
-            aria-disabled={enviando}
-            aria-describedby="ajuda-do-botao"
-          >
-            {enviando ? "Atualizando…" : "Atualizar agora"}
-          </button>
-          <p className="ajuda" id="ajuda-do-botao">
-            O app já busca dados novos sozinho quando você abre esta página. Use o botão se quiser
-            adiantar.
-          </p>
+        <form method="post" action="/app" className="acao" onSubmit={aoEnviar}>
+          <BotaoAtualizar enviando={enviando} />
         </form>
       )}
     </section>

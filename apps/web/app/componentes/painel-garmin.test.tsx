@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 
 import { RESULTADOS_DA_ATUALIZACAO, type PainelDaGarmin } from "../server/garmin";
-import { PainelGarmin } from "./painel-garmin";
+import { BotaoAtualizar, PainelGarmin, QuadroGarmin } from "./painel-garmin";
 
 const painelBase: PainelDaGarmin = {
   situacao: "pronta",
@@ -15,6 +15,7 @@ const painelBase: PainelDaGarmin = {
   ligada: true,
   pausadaAte: null,
   problema: null,
+  itensIgnorados: 0,
   podeAtualizar: true,
 };
 
@@ -232,18 +233,24 @@ describe("quadro da conta Garmin", () => {
     }
   });
 
-  it("qualquer pausa para a importação: diz 'pausada', nunca 'Trazendo'", () => {
-    const t = texto({
-      ...painelBase,
-      problema: "limite_garmin",
-      pausadaAte: "2026-11-15T16:00:00.000Z",
-      importacao: { emAndamento: true, de: "2026-08-18", ate: null, parada: "espera" },
-    });
-    expect(t).toContain(
+  it("qualquer pausa para a importação: diz 'pausada', nunca 'Trazendo'; só fora do 429 o botão funciona", () => {
+    const pausa = (problema: "limite_garmin" | "chave_invalida") =>
+      texto({
+        ...painelBase,
+        problema,
+        pausadaAte: "2026-11-15T16:00:00.000Z",
+        importacao: { emAndamento: true, de: "2026-08-18", ate: null, parada: "espera" },
+      });
+    // Limite da Garmin (429): o botão também espera, então a frase do botão não aparece.
+    const limite = pausa("limite_garmin");
+    expect(limite).toContain("A importação está pausada até 13:00.");
+    expect(limite).not.toContain("funciona antes disso");
+    expect(limite).not.toContain("Trazendo");
+    expect(limite).not.toContain("..");
+    // Outras pausas (chave recusada, token recusado, formato): o botão funciona.
+    expect(pausa("chave_invalida")).toContain(
       "A importação está pausada até 13:00; o botão Atualizar agora funciona antes disso.",
     );
-    expect(t).not.toContain("Trazendo");
-    expect(t).not.toContain("..");
   });
 
   it("importação sem nada trazido ainda: um ponto só", () => {
@@ -299,15 +306,36 @@ describe("quadro da conta Garmin", () => {
     expect(t).not.toContain("Para voltar a sincronizar");
   });
 
-  it("botão 'Atualizando…': aria-disabled verdadeiro, sem trocar o botão por outro elemento", () => {
-    const m = renderToStaticMarkup(
-      <MemoryRouter>
-        <PainelGarmin painel={painelBase} resultado={null} enviandoInicialmente />
-      </MemoryRouter>,
-    );
+  it("botão 'Atualizando…' (componente de apresentação): aria-disabled verdadeiro e rótulo novo", () => {
+    const m = renderToStaticMarkup(<BotaoAtualizar enviando />);
     expect(m).toContain('aria-disabled="true"');
     expect(m).toContain("Atualizando…");
     expect(m).not.toContain(">Atualizar agora<");
+    const parado = renderToStaticMarkup(<BotaoAtualizar enviando={false} />);
+    expect(parado).toContain('aria-disabled="false"');
+    expect(parado).toContain(">Atualizar agora<");
+    expect(parado).toContain('id="ajuda-do-botao"');
+  });
+
+  it("o quadro com o botão enviando mostra o mesmo estado que o painel mostra depois do toque", () => {
+    const m = renderToStaticMarkup(
+      <MemoryRouter>
+        <QuadroGarmin painel={painelBase} resultado={null} enviando aoEnviar={() => undefined} />
+      </MemoryRouter>,
+    );
+    expect(m).toContain("Atualizando…");
+    expect(m).toContain('aria-disabled="true"');
+  });
+
+  it("itens da Garmin que ficaram de fora: uma linha discreta, sem dado de saúde", () => {
+    expect(texto({ ...painelBase, itensIgnorados: 1 })).toContain(
+      "1 item da Garmin veio num formato que o app ainda não entende e ficou de fora.",
+    );
+    expect(texto({ ...painelBase, itensIgnorados: 3 })).toContain(
+      "3 itens da Garmin vieram num formato que o app ainda não entende e ficaram de fora.",
+    );
+    expect(texto(painelBase)).not.toContain("ficaram de fora");
+    expect(texto(painelBase)).not.toContain("ficou de fora");
   });
 
   it("estados vazios: não configurada e indisponível (com o gesto 'Tentar de novo')", () => {

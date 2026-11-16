@@ -1,4 +1,4 @@
-import { and, eq, isNull, lt, or } from "drizzle-orm";
+import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import type { Banco } from "./banco.js";
@@ -56,6 +56,8 @@ export interface EstadoDaSincronizacao {
   readonly ultimoSucessoEm: string | null;
   readonly pausaAte: string | null;
   readonly falhasDeLimiteSeguidas: number;
+  /** Itens da Garmin que ficaram de fora por formato desconhecido (soma desde o começo). */
+  readonly itensIgnorados: number;
   readonly travaAte: string | null;
 }
 
@@ -93,6 +95,7 @@ const linhaDeEstado = z.object({
   ultimoSucessoEm: z.string().nullable(),
   pausaAte: z.string().nullable(),
   falhasDeLimiteSeguidas: z.number().int(),
+  itensIgnorados: z.number().int().nonnegative(),
   travaAte: z.string().nullable(),
 });
 
@@ -197,6 +200,8 @@ export interface FimDaExecucao {
   readonly executou: boolean;
   readonly pausaAte: string | null;
   readonly falhasDeLimiteSeguidas: number;
+  /** Itens descartados nesta execução; somam ao total do estado. */
+  readonly itensIgnorados: number;
 }
 
 /** Libera a trava e grava como a execução terminou. */
@@ -209,6 +214,7 @@ export function registrarFimDaExecucao(banco: Banco, fim: FimDaExecucao, agora: 
       erroCodigo: fim.erroCodigo,
       pausaAte: fim.pausaAte,
       falhasDeLimiteSeguidas: fim.falhasDeLimiteSeguidas,
+      itensIgnorados: sql`${sincronizacaoEstado.itensIgnorados} + ${fim.itensIgnorados}`,
       travaAte: null,
       ...(fim.buscouDados ? { ultimoSucessoEm: agora } : {}),
       ...(fim.executou ? { ultimaExecucaoEm: agora } : {}),

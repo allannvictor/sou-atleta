@@ -55,6 +55,8 @@ export interface PainelDaGarmin {
   /** Instante até o qual a Garmin pediu para esperar (só quando ainda vale). */
   readonly pausadaAte: string | null;
   readonly problema: CodigoDeErro | null;
+  /** Itens da Garmin que ficaram de fora por formato desconhecido (soma). */
+  readonly itensIgnorados: number;
   /** A ligação com a Worker `sync` existe (o botão e o pedido ao abrir dependem dela). */
   readonly ligada: boolean;
   readonly podeAtualizar: boolean;
@@ -78,6 +80,7 @@ export function montarPainel(
       importacao: null,
       pausadaAte: null,
       problema: null,
+      itensIgnorados: 0,
       ligada: false,
       podeAtualizar: false,
     };
@@ -135,6 +138,7 @@ export function montarPainel(
       importacao: null,
       pausadaAte: null,
       problema,
+      itensIgnorados: 0,
       ligada: temSync,
       podeAtualizar: false,
     };
@@ -149,6 +153,7 @@ export function montarPainel(
     importacao,
     pausadaAte,
     problema,
+    itensIgnorados: estado?.itensIgnorados ?? 0,
     ligada: temSync,
     podeAtualizar: temSync,
   };

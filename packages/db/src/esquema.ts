@@ -197,6 +197,8 @@ export const sincronizacaoEstado = sqliteTable(
     /** Antes deste instante a sincronização não fala com a Garmin. */
     pausaAte: text("pausa_ate"),
     falhasDeLimiteSeguidas: integer("falhas_de_limite_seguidas").notNull().default(0),
+    /** Quantos itens da Garmin vieram num formato que o app não entende e ficaram de fora (soma). */
+    itensIgnorados: integer("itens_ignorados").notNull().default(0),
     /** Trava contra duas execuções ao mesmo tempo; expira sozinha. */
     travaAte: text("trava_ate"),
     atualizadoEm: text("atualizado_em").notNull(),

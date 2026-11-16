@@ -9,6 +9,7 @@ export {
   type JanelaDeDatas,
   type OpcoesDoCliente,
   type PaginaDeAtividades,
+  type ResultadoDePagina,
 } from "./cliente.js";
 export { diasDaJanela, ehData, somarDias } from "./datas.js";
 export {

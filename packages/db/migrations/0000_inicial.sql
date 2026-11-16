@@ -95,6 +95,7 @@ CREATE TABLE `sincronizacao_estado` (
 	`ultimo_sucesso_em` text,
 	`pausa_ate` text,
 	`falhas_de_limite_seguidas` integer DEFAULT 0 NOT NULL,
+	`itens_ignorados` integer DEFAULT 0 NOT NULL,
 	`trava_ate` text,
 	`atualizado_em` text NOT NULL,
 	CONSTRAINT "sincronizacao_estado_unico" CHECK("sincronizacao_estado"."id" = 1),

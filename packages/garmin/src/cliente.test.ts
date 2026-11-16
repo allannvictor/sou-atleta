@@ -326,7 +326,7 @@ describe("validação das respostas (Zod)", () => {
     const { cliente } = montar({
       atividades: [atividadeBruta(1, "2026-11-02"), atividadeBruta(2, "2026-11-03")],
     });
-    const lista = await cliente.atividades({ ...JANELA, inicio: 0 });
+    const { itens: lista } = await cliente.atividades({ ...JANELA, inicio: 0 });
     expect(lista).toHaveLength(2);
     const saida = JSON.stringify(lista);
     for (const proibido of VALORES_PROIBIDOS) expect(saida).not.toContain(proibido);
@@ -426,9 +426,10 @@ describe("validação das respostas (Zod)", () => {
       },
       aoDescartar: (fluxo, quantidade) => descartes.push([fluxo, quantidade]),
     });
-    const lista = await cliente.atividades({ ...JANELA, inicio: 0 });
+    const { itens: lista } = await cliente.atividades({ ...JANELA, inicio: 0 });
     expect(lista.map((a) => a.id)).toEqual([1, 3]);
     expect(descartes).toEqual([["atividades", 1]]);
+    expect(cliente.itensDescartados()).toBe(1);
     expect(JSON.stringify(descartes)).not.toContain("muito-secreto");
     // Lista sem nenhum item inválido não chama o aviso.
     descartes.length = 0;
@@ -440,7 +441,22 @@ describe("validação das respostas (Zod)", () => {
     const { cliente } = montar({
       atividades: [atividadeBruta(7, "2026-11-02", { duration: "muito" })],
     });
-    await expect(cliente.atividades({ ...JANELA, inicio: 0 })).resolves.toEqual([]);
+    await expect(cliente.atividades({ ...JANELA, inicio: 0 })).resolves.toMatchObject({
+      itens: [],
+    });
+  });
+
+  it("a página diz quantas atividades a Garmin mandou de verdade, mesmo com itens descartados", async () => {
+    const { cliente } = montar({
+      atividades: [
+        atividadeBruta(1, "2026-11-02"),
+        atividadeBruta(2, "2026-11-02", { duration: "muito" }),
+        atividadeBruta(3, "2026-11-03"),
+      ],
+    });
+    const pagina = await cliente.atividades({ ...JANELA, inicio: 0 });
+    expect(pagina.itens).toHaveLength(2);
+    expect(pagina.recebidas).toBe(3);
   });
 
   it("corpo que não é JSON ou formato de token desconhecido também são erros claros", async () => {
@@ -582,14 +598,19 @@ describe("redirecionamentos, tamanho e valores sentinela", () => {
         ),
       dormir: () => Promise.resolve(),
     });
-    await expect(c.atividades({ ...JANELA, inicio: 0 })).resolves.toEqual([]);
+    await expect(c.atividades({ ...JANELA, inicio: 0 })).resolves.toMatchObject({
+      itens: [],
+      recebidas: 0,
+    });
   });
 
   it("valores 'sem dados' da Garmin (-1, 0) não viram medida", async () => {
     const { cliente } = montar({
       atividades: [atividadeBruta(1, "2026-11-02", { averageHR: 0, maxHR: -1 })],
     });
-    const [a] = await cliente.atividades({ ...JANELA, inicio: 0 });
+    const {
+      itens: [a],
+    } = await cliente.atividades({ ...JANELA, inicio: 0 });
     expect(a).toMatchObject({ fcMedia: null, fcMaxima: null });
 
     const garmin = criarGarminFalsa({
@@ -635,10 +656,12 @@ describe("redirecionamentos, tamanho e valores sentinela", () => {
         atividadeBruta(1, "2026-11-02", { startTimeLocal: "2026-11-02 07:00:00 e-mail@x.test" }),
       ],
     });
-    await expect(cliente.atividades({ ...JANELA, inicio: 0 })).resolves.toEqual([]);
+    await expect(cliente.atividades({ ...JANELA, inicio: 0 })).resolves.toMatchObject({
+      itens: [],
+    });
     const frac = montar({
       atividades: [atividadeBruta(2, "2026-11-02", { startTimeLocal: "2026-11-02T07:00:00.031" })],
     });
-    await expect(frac.cliente.atividades({ ...JANELA, inicio: 0 })).resolves.toHaveLength(1);
+    expect((await frac.cliente.atividades({ ...JANELA, inicio: 0 })).itens).toHaveLength(1);
   });
 });

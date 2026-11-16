@@ -22,6 +22,7 @@ const estadoBase = {
   ultimoSucessoEm: "2026-11-15T14:45:00.000Z",
   pausaAte: null,
   falhasDeLimiteSeguidas: 0,
+  itensIgnorados: 0,
   travaAte: null,
 } as const;
 
@@ -143,6 +144,11 @@ describe("painel da Garmin", () => {
       ligada: true,
     });
     expect(devePedirAoAbrir(painel, AGORA)).toBe(true);
+  });
+
+  it("expõe quantos itens da Garmin ficaram de fora", () => {
+    expect(montarPainel(foto({ itensIgnorados: 4 }), AGORA, true).itensIgnorados).toBe(4);
+    expect(montarPainel(foto(), AGORA, true).itensIgnorados).toBe(0);
   });
 
   it("expõe a última tentativa e a última atualização separadas", () => {

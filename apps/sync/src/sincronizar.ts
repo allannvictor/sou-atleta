@@ -344,6 +344,8 @@ interface Situacao {
   buscouDados: boolean;
   parouPorErro: boolean;
   janelas: number;
+  /** Itens inválidos da Garmin descartados nas janelas gravadas nesta execução. */
+  itensIgnorados: number;
 }
 
 async function executar(
@@ -375,6 +377,7 @@ async function executar(
     buscouDados: false,
     parouPorErro: false,
     janelas: 0,
+    itensIgnorados: 0,
   };
 
   /** Erros que só afetam um fluxo: registra e segue com os outros. */
@@ -406,16 +409,19 @@ async function executar(
     const janela = proximaJanela(p, hoje);
     const comandos: ComandoDeLote[] = [];
     let itens = 0;
+    const descartadosAntes = cliente.itensDescartados();
 
     if (fluxo === "atividades") {
       let inicio = 0;
       for (;;) {
         const pagina = await cliente.atividades({ ...janela, inicio });
         sit.chaveAceita = true;
-        for (const a of pagina) comandos.push(gravarAtividade(banco, a, iso));
-        itens += pagina.length;
-        inicio += pagina.length;
-        if (pagina.length < ATIVIDADES_POR_PAGINA) break;
+        for (const a of pagina.itens) comandos.push(gravarAtividade(banco, a, iso));
+        itens += pagina.itens.length;
+        // A decisão de buscar mais uma página usa o que a Garmin MANDOU (resposta bruta), não o
+        // que sobrou depois de descartar itens inválidos: página cheia = pode haver mais.
+        inicio += pagina.recebidas;
+        if (pagina.recebidas < ATIVIDADES_POR_PAGINA) break;
         // Mais uma página: se não couber, abandona a janela inteira (nada foi gravado). O
         // orçamento comporta bem mais de 300 atividades numa janela, mais do que qualquer atleta.
         if (!orcamento.cabe(1, 1)) throw new OrcamentoEsgotado();
@@ -446,6 +452,8 @@ async function executar(
     await executarLote(banco, comandos);
     orcamento.d1 += 1;
     sit.buscouDados = true;
+    // Só conta os descartados de uma janela que de fato foi gravada (uma abandonada é relida).
+    sit.itensIgnorados += cliente.itensDescartados() - descartadosAntes;
     registrar({ evento: "janela_importada", fluxo, itens, importacaoInicialCompleta });
     return {
       ...p,
@@ -569,6 +577,7 @@ async function executar(
       executou: true,
       pausaAte: sit.pausaAte,
       falhasDeLimiteSeguidas: sit.erroCodigo === "limite_garmin" ? sit.falhasDeLimite : 0,
+      itensIgnorados: sit.itensIgnorados,
     },
     iso,
   );
