@@ -72,6 +72,7 @@ describe("a chave falsa passa pelo Worker inteiro", () => {
       DB: banco,
       GARMIN_API_KEY: CHAVE_FALSA,
       GARMIN_CHAVE_VENCE_EM: "2027-03-01",
+      POLITICA_REVISTA: "sim",
     };
 
     const corpos: string[] = [];

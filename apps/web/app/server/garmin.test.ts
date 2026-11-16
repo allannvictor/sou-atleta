@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { action, loader } from "../routes/app";
 import {
+  devePedirAoAbrir,
   lerPainel,
   montarPainel,
   pedirAtualizacao,
@@ -89,9 +90,59 @@ describe("painel da Garmin", () => {
       },
     ];
     const parada = montarPainel({ ...foto({ statusDaChave: "invalida" }), progresso }, AGORA, true);
-    expect(parada.importacao).toEqual({ emAndamento: true, ate: "2026-10-12", parada: true });
+    expect(parada.importacao).toEqual({
+      emAndamento: true,
+      de: "2026-08-17",
+      ate: "2026-10-12",
+      parada: "chave",
+    });
     const andando = montarPainel({ ...foto(), progresso }, AGORA, true);
-    expect(andando.importacao).toEqual({ emAndamento: true, ate: "2026-10-12", parada: false });
+    expect(andando.importacao).toEqual({
+      emAndamento: true,
+      de: "2026-08-17",
+      ate: "2026-10-12",
+      parada: null,
+    });
+  });
+
+  it("a importação para por token recusado, por pausa de qualquer causa e por chave; não por erro passageiro", () => {
+    const progresso = [
+      {
+        fluxo: "sono" as const,
+        inicio: "2026-08-17",
+        importadoAte: "2026-10-12",
+        historicoCompleto: false,
+        verificadoEm: null,
+      },
+    ];
+    const com = (extra: Parameters<typeof foto>[0]) => ({ ...foto(extra), progresso });
+    expect(
+      montarPainel(com({ erroCodigo: "token_recusado" }), AGORA, true).importacao?.parada,
+    ).toBe("conector");
+    expect(
+      montarPainel(
+        com({ erroCodigo: "limite_garmin", pausaAte: "2026-11-15T16:00:00.000Z" }),
+        AGORA,
+        true,
+      ).importacao?.parada,
+    ).toBe("espera");
+    expect(montarPainel(com({ erroCodigo: "rede" }), AGORA, true).importacao?.parada).toBeNull();
+  });
+
+  it("trava mecânica: 'não liberada' vira um estado próprio, sem botão, e ainda pede à sync ao abrir", () => {
+    const painel = montarPainel(
+      foto({ erroCodigo: "nao_liberada", statusDaChave: "ausente" }),
+      AGORA,
+      true,
+    );
+    expect(painel).toMatchObject({
+      situacao: "nao_liberada",
+      aviso: null,
+      importacao: null,
+      podeAtualizar: false,
+      ligada: true,
+    });
+    expect(devePedirAoAbrir(painel, AGORA)).toBe(true);
   });
 
   it("expõe a última tentativa e a última atualização separadas", () => {
@@ -132,7 +183,7 @@ describe("painel da Garmin", () => {
         AGORA,
         true,
       ).importacao,
-    ).toEqual({ emAndamento: true, ate: "2023-02-01", parada: false });
+    ).toEqual({ emAndamento: true, de: "2020-01-01", ate: "2023-02-01", parada: null });
     expect(
       montarPainel(
         {
@@ -142,7 +193,7 @@ describe("painel da Garmin", () => {
         AGORA,
         true,
       ).importacao,
-    ).toEqual({ emAndamento: false, ate: "2026-11-15", parada: false });
+    ).toEqual({ emAndamento: false, de: "2020-01-01", ate: "2026-11-15", parada: null });
   });
 });
 

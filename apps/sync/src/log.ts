@@ -26,6 +26,7 @@ const RESULTADOS = [
   "sem_chave",
   "ja_em_andamento",
   "muito_cedo",
+  "nao_liberada",
 ] as const;
 
 const contagem = z.number().int().nonnegative();
@@ -45,7 +46,7 @@ const esquemaDoEvento = z.discriminatedUnion("evento", [
   z.strictObject({
     evento: z.literal("execucao_ignorada"),
     modo: z.enum(MODOS),
-    motivo: z.enum(["pausada", "muito_cedo", "ja_em_andamento", "sem_chave"]),
+    motivo: z.enum(["pausada", "muito_cedo", "ja_em_andamento", "sem_chave", "nao_liberada"]),
   }),
   z.strictObject({ evento: z.literal("execucao_anterior_interrompida") }),
   z.strictObject({
@@ -55,6 +56,11 @@ const esquemaDoEvento = z.discriminatedUnion("evento", [
     importacaoInicialCompleta: z.boolean(),
   }),
   z.strictObject({ evento: z.literal("importacao_inicial_iniciada") }),
+  z.strictObject({
+    evento: z.literal("itens_descartados"),
+    fluxo: z.enum(FLUXOS),
+    quantidade: contagem,
+  }),
   z.strictObject({ evento: z.literal("perfil_atualizado") }),
   z.strictObject({ evento: z.literal("origem_de_fc_conferida"), atividades: contagem }),
   z.strictObject({ evento: z.literal("orcamento_esgotado") }),

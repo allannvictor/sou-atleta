@@ -84,6 +84,10 @@ describe("trava de execução", () => {
       "2026-11-15T10:05:00.000Z",
     );
     expect(primeira).toEqual({ obtida: true, anteriorInterrompida: false });
+    // A tentativa fica registrada ao pegar a trava, não só no fim.
+    expect((await lerFotoDaSincronizacao(banco)).estado?.ultimaExecucaoEm).toBe(
+      "2026-11-15T10:00:00.000Z",
+    );
 
     const segunda = await tentarPegarTrava(
       banco,

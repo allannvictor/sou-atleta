@@ -97,7 +97,14 @@ export const atividadeSchema = z
     efeitoAerobico: a.aerobicTrainingEffect,
     efeitoAnaerobico: a.anaerobicTrainingEffect,
   }));
-export const listaDeAtividadesSchema = z.array(atividadeSchema).max(MAXIMO_DE_ITENS);
+/**
+ * Listas: o "envelope" é validado aqui e cada ITEM, à parte (`cliente.ts`). Um item inválido é
+ * descartado e contado, sem derrubar a janela inteira (com atividades de todas as modalidades,
+ * um item sem campo obrigatório acontece). Só o envelope errado, ou uma lista cujos itens
+ * falham todos, é erro de formato.
+ */
+export const listaDeAtividadesBruta = z.array(z.unknown()).max(MAXIMO_DE_ITENS);
+export const itemDeAtividade = atividadeSchema;
 
 const diaDeHrvSchema = z
   .object({
@@ -115,9 +122,10 @@ const diaDeHrvSchema = z
     hrvPico5minMs: h.lastNight5MinHigh,
     estado: h.status,
   }));
-export const hrvSchema = z
-  .object({ hrvSummaries: z.array(diaDeHrvSchema).max(MAXIMO_DE_ITENS) })
+export const hrvBruto = z
+  .object({ hrvSummaries: z.array(z.unknown()).max(MAXIMO_DE_ITENS) })
   .transform((r) => r.hrvSummaries);
+export const itemDeHrv = diaDeHrvSchema;
 
 const diaDeSonoSchema = z
   .object({
@@ -137,7 +145,8 @@ const diaDeSonoSchema = z
     remS: s.remSleepSeconds,
     acordadoS: s.awakeSleepSeconds,
   }));
-export const sonoSchema = z.array(diaDeSonoSchema).max(MAXIMO_DE_ITENS);
+export const sonoBruto = z.array(z.unknown()).max(MAXIMO_DE_ITENS);
+export const itemDeSono = diaDeSonoSchema;
 
 const diaDeResumoSchema = z
   .object({
@@ -166,9 +175,10 @@ const diaDeResumoSchema = z
     bodyBatteryDrenada: r.bodyBattery?.drainedValue ?? null,
     bodyBatteryFimDoDia: r.bodyBattery?.endOfDayValue ?? null,
   }));
-export const resumosDiariosSchema = z
-  .object({ data: z.array(diaDeResumoSchema).max(MAXIMO_DE_ITENS) })
+export const resumosDiariosBruto = z
+  .object({ data: z.array(z.unknown()).max(MAXIMO_DE_ITENS) })
   .transform((r) => r.data);
+export const itemDeResumoDiario = diaDeResumoSchema;
 
 const zonaSchema = z
   .object({

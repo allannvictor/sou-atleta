@@ -43,6 +43,7 @@ export const RESULTADOS_DA_ATUALIZACAO = [
   "muito_cedo",
   "ja_em_andamento",
   "nao_configurada",
+  "nao_liberada",
   "erro",
 ] as const;
 export type ResultadoDaAtualizacao = (typeof RESULTADOS_DA_ATUALIZACAO)[number];
@@ -170,7 +171,9 @@ export async function tentarPegarTrava(
     .where(eq(sincronizacaoEstado.id, 1));
   const [pegou] = await banco
     .update(sincronizacaoEstado)
-    .set({ travaAte, atualizadoEm: agora })
+    // A tentativa fica registrada ao pegar a trava: uma execução cortada (por exemplo, pelo limite
+    // de CPU) também segura a próxima por 10 min / 60 s.
+    .set({ travaAte, ultimaExecucaoEm: agora, atualizadoEm: agora })
     .where(
       and(
         eq(sincronizacaoEstado.id, 1),
@@ -284,16 +287,19 @@ export function registrarEstadoDaChave(
   estado: { readonly statusDaChave: StatusDaChave; readonly chaveVenceEm: string | null },
   agora: string,
 ) {
-  return banco
-    .update(sincronizacaoEstado)
-    .set({ ...estado, atualizadoEm: agora })
-    .where(eq(sincronizacaoEstado.id, 1));
+  return (
+    banco
+      .update(sincronizacaoEstado)
+      // Sem chave pronta, o problema anterior (por exemplo, "não liberada") deixa de valer.
+      .set({ ...estado, erroCodigo: null, atualizadoEm: agora })
+      .where(eq(sincronizacaoEstado.id, 1))
+  );
 }
 
-/** Marca que a execução anterior começou e não terminou (travou ou foi cortada pelo limite de CPU). */
-export function registrarInterrupcao(banco: Banco, agora: string) {
+/** Grava só o código do último problema (por exemplo, a execução anterior foi cortada). */
+export function registrarCodigoNoEstado(banco: Banco, codigo: CodigoDeErro, agora: string) {
   return banco
     .update(sincronizacaoEstado)
-    .set({ erroCodigo: "execucao_interrompida", atualizadoEm: agora })
+    .set({ erroCodigo: codigo, atualizadoEm: agora })
     .where(eq(sincronizacaoEstado.id, 1));
 }

@@ -26,15 +26,20 @@ export interface LigacoesDaGarmin {
   readonly aoFundo: (trabalho: Promise<unknown>) => void;
 }
 
-export type SituacaoDaConexao = "nao_configurada" | "indisponivel" | "pronta";
+export type SituacaoDaConexao = "nao_configurada" | "indisponivel" | "nao_liberada" | "pronta";
+
+/** Por que a importação não está andando: a chave, o conector (app) ou uma espera. */
+export type ParadaDaImportacao = "chave" | "conector" | "espera";
 
 export interface ProgressoDaImportacao {
   /** Os últimos 3 meses ainda não terminaram de chegar. */
   readonly emAndamento: boolean;
+  /** Primeiro dia dos 3 meses. */
+  readonly de: string | null;
   /** Último dia que a importação já alcançou (o mais atrasado entre os fluxos). */
   readonly ate: string | null;
-  /** Está parada por causa da chave (ausente, mal colada, recusada ou vencida). */
-  readonly parada: boolean;
+  /** Se não está andando, por quê (qualquer coisa que pare a execução). */
+  readonly parada: ParadaDaImportacao | null;
 }
 
 export interface PainelDaGarmin {
@@ -50,6 +55,8 @@ export interface PainelDaGarmin {
   /** Instante até o qual a Garmin pediu para esperar (só quando ainda vale). */
   readonly pausadaAte: string | null;
   readonly problema: CodigoDeErro | null;
+  /** A ligação com a Worker `sync` existe (o botão e o pedido ao abrir dependem dela). */
+  readonly ligada: boolean;
   readonly podeAtualizar: boolean;
 }
 
@@ -71,6 +78,7 @@ export function montarPainel(
       importacao: null,
       pausadaAte: null,
       problema: null,
+      ligada: false,
       podeAtualizar: false,
     };
   }
@@ -91,12 +99,21 @@ export function montarPainel(
       aviso.tipo === "mal_formada" ||
       aviso.tipo === "invalida" ||
       aviso.tipo === "venceu");
+  const problema = estado?.erroCodigo ?? null;
+  const paradaPor: ParadaDaImportacao | null = chaveParada
+    ? "chave"
+    : problema === "token_recusado"
+      ? "conector"
+      : pausadaAte !== null
+        ? "espera"
+        : null;
   const progresso = foto.progresso;
   const importacao: ProgressoDaImportacao | null =
     progresso.length === 0
       ? null
       : {
           emAndamento: progresso.some((p) => !p.historicoCompleto),
+          de: progresso.map((p) => p.inicio).sort()[0] ?? null,
           ate: progresso
             .map((p) => p.importadoAte)
             .reduce<string | null>(
@@ -104,8 +121,24 @@ export function montarPainel(
                 data === null ? menor : menor === null || data < menor ? data : menor,
               null,
             ),
-          parada: chaveParada,
+          parada: paradaPor,
         };
+
+  // Trava mecânica da sync (POLITICA_REVISTA): sem liberação, o quadro diz só isso.
+  if (problema === "nao_liberada") {
+    return {
+      situacao: "nao_liberada",
+      aviso: null,
+      chaveVenceEm: null,
+      ultimaAtualizacaoEm: estado?.ultimoSucessoEm ?? null,
+      ultimaTentativaEm: null,
+      importacao: null,
+      pausadaAte: null,
+      problema,
+      ligada: temSync,
+      podeAtualizar: false,
+    };
+  }
 
   return {
     situacao: "pronta",
@@ -115,7 +148,8 @@ export function montarPainel(
     ultimaTentativaEm: estado?.ultimaExecucaoEm ?? null,
     importacao,
     pausadaAte,
-    problema: estado?.erroCodigo ?? null,
+    problema,
+    ligada: temSync,
     podeAtualizar: temSync,
   };
 }
@@ -154,7 +188,13 @@ export async function pedirAtualizacao(sync: Fetcher | undefined): Promise<Resul
  * pediu para esperar; a `sync` confere de novo, então isto só poupa a viagem até ela.
  */
 export function devePedirAoAbrir(painel: PainelDaGarmin, agora: Date): boolean {
-  if (painel.situacao !== "pronta" || !painel.podeAtualizar || painel.pausadaAte !== null) {
+  // "Não liberada" também pede: a sync confere de novo e o quadro sai desse estado sozinho
+  // quando a trava for aberta.
+  if (
+    (painel.situacao !== "pronta" && painel.situacao !== "nao_liberada") ||
+    !painel.ligada ||
+    painel.pausadaAte !== null
+  ) {
     return false;
   }
   if (painel.ultimaTentativaEm === null) return true;

@@ -221,12 +221,14 @@ describe("outros erros", () => {
     expect((await lerFotoDaSincronizacao(a.banco)).estado?.erroCodigo).toBeNull();
   });
 
-  it("resposta fora do formato para só aquele fluxo e não grava nada dele; os outros seguem", async () => {
+  it("lista inteira fora do formato para só aquele fluxo e não grava nada dele; os outros seguem", async () => {
     const a = montarAmbiente({
       dados: {
         atividades: [
           atividadeBruta(1, "2026-08-18"),
           atividadeBruta(2, "2026-09-05", { duration: "muito" }),
+          atividadeBruta(3, "2026-09-06", { duration: "muito" }),
+          atividadeBruta(4, "2026-09-07", { duration: "muito" }),
         ],
         diasDeSaude: ["2026-08-18"],
       },
@@ -251,5 +253,49 @@ describe("outros erros", () => {
       "manual",
     );
     expect(resultadoParaOSite(resumo)).toBe("atualizada_em_parte");
+  });
+});
+
+describe("trava mecânica POLITICA_REVISTA", () => {
+  it("não liberada: nenhuma chamada à Garmin, mesmo com a chave cadastrada; o painel sabe", async () => {
+    const a = montarAmbiente({ liberada: false });
+    for (const modo of ["ao_abrir", "manual"] as const) {
+      const resumo = await sincronizar(a.dependencias(), modo);
+      expect(resumo.resultado).toBe("nao_liberada");
+      expect(resultadoParaOSite(resumo)).toBe("nao_liberada");
+      a.avancar(ONZE_MINUTOS);
+    }
+    expect(a.garmin.requisicoes).toHaveLength(0);
+    expect(a.memoria.despejo()).not.toContain("atividade: [{"); // nada foi importado
+    expect((await lerFotoDaSincronizacao(a.banco)).estado?.erroCodigo).toBe("nao_liberada");
+    expect(a.eventos).toContainEqual({
+      evento: "execucao_ignorada",
+      modo: "manual",
+      motivo: "nao_liberada",
+    });
+  });
+
+  it("depois de liberada, a sincronização roda e o aviso some", async () => {
+    const a = montarAmbiente({ liberada: false });
+    await sincronizar(a.dependencias(), "manual");
+    const liberado = { ...a.dependencias(), liberada: true };
+    const resumo = await sincronizar(
+      { ...liberado, agora: () => new Date(a.agora() + 2 * 60_000) },
+      "manual",
+    );
+    expect(resumo.resultado).toBe("concluida");
+    expect((await lerFotoDaSincronizacao(a.banco)).estado?.erroCodigo).toBeNull();
+  });
+
+  it("sem chave e liberada, o aviso 'não liberada' antigo também some", async () => {
+    const a = montarAmbiente({ liberada: false, chave: "ausente" });
+    await sincronizar(a.dependencias(), "manual");
+    const estado = await lerFotoDaSincronizacao(a.banco);
+    expect(estado.estado?.erroCodigo).toBe("nao_liberada");
+    await sincronizar({ ...a.dependencias(), liberada: true }, "manual");
+    expect((await lerFotoDaSincronizacao(a.banco)).estado).toMatchObject({
+      statusDaChave: "ausente",
+      erroCodigo: null,
+    });
   });
 });

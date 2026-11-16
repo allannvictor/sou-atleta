@@ -16,7 +16,7 @@ import {
   listarAtividadesSemOrigemDeFc,
   registrarEstadoDaChave,
   registrarFimDaExecucao,
-  registrarInterrupcao,
+  registrarCodigoNoEstado,
   tentarPegarTrava,
   type Banco,
   type CodigoDeErro,
@@ -82,6 +82,12 @@ export type ChaveDoCofre =
 
 export interface Dependencias {
   readonly banco: Banco;
+  /**
+   * Trava mecânica (`POLITICA_REVISTA` no `wrangler.jsonc`): enquanto for falso, a sync não fala
+   * com a Garmin, mesmo com a chave cadastrada. Só vira verdadeiro no PR que fecha a #29 (política
+   * revista), depois da #22.
+   */
+  readonly liberada: boolean;
   readonly chave: ChaveDoCofre;
   /** Vencimento da chave (`YYYY-MM-DD`) informado pelo dono, se válido. */
   readonly venceEm: string | null;
@@ -89,7 +95,8 @@ export interface Dependencias {
   readonly registrar: Registrador;
 }
 
-export type MotivoDeIgnorar = "pausada" | "sem_chave" | "ja_em_andamento" | "muito_cedo";
+export type MotivoDeIgnorar =
+  "pausada" | "sem_chave" | "ja_em_andamento" | "muito_cedo" | "nao_liberada";
 export type Resultado = "concluida" | "parada_por_erro" | MotivoDeIgnorar;
 
 export interface ResumoDaExecucao {
@@ -113,6 +120,7 @@ export function resultadoParaOSite(resumo: ResumoDaExecucao): ResultadoDaAtualiz
     case "sem_chave":
     case "ja_em_andamento":
     case "muito_cedo":
+    case "nao_liberada":
       return resumo.resultado;
     case "concluida":
       return resumo.erroCodigo === null ? "atualizada" : "atualizada_em_parte";
@@ -157,25 +165,28 @@ export function proximaJanela(p: ProgressoDoFluxo, hoje: string): Janela {
 
 /**
  * Qual fluxo recebe a próxima janela. Todos os fluxos estão sempre "devidos" (a cota é protegida
- * pelo intervalo entre execuções, não por fluxo); a escolha é um rodízio justo: o que foi
- * verificado há mais tempo vai primeiro (nunca verificado, antes de todos). No botão, as
- * atividades vão primeiro, porque é o que o atleta quer ver depois de um treino. Cada fluxo
- * recebe no máximo uma janela por execução.
+ * pelo intervalo entre execuções, não por fluxo). Ordem, igual ao abrir a página e no botão:
+ *
+ * 1. quem ainda não completou os 90 dias vem antes de quem já completou;
+ * 2. dentro de cada grupo, as atividades primeiro (é o treino que o atleta quer ver);
+ * 3. depois, o rodízio: o verificado há mais tempo vai primeiro (nunca verificado, antes de todos).
+ *
+ * Cada fluxo recebe no máximo uma janela por execução.
  */
 export function proximoFluxo(
   progresso: ReadonlyMap<Fluxo, ProgressoDoFluxo>,
   jaFeitos: ReadonlySet<Fluxo>,
-  modo: Modo,
 ): Fluxo | null {
   const candidatos = FLUXOS.filter((f) => progresso.has(f) && !jaFeitos.has(f));
+  const incompleto = (f: Fluxo) => (progresso.get(f)?.historicoCompleto === true ? 1 : 0);
   const verificadoEm = (f: Fluxo) => progresso.get(f)?.verificadoEm ?? "";
-  const ordenados = [...candidatos].sort((a, b) => {
-    if (modo === "manual" && a !== b) {
-      if (a === "atividades") return -1;
-      if (b === "atividades") return 1;
-    }
-    return verificadoEm(a).localeCompare(verificadoEm(b)) || FLUXOS.indexOf(a) - FLUXOS.indexOf(b);
-  });
+  const ordenados = [...candidatos].sort(
+    (a, b) =>
+      incompleto(a) - incompleto(b) ||
+      Number(b === "atividades") - Number(a === "atividades") ||
+      verificadoEm(a).localeCompare(verificadoEm(b)) ||
+      FLUXOS.indexOf(a) - FLUXOS.indexOf(b),
+  );
   return ordenados[0] ?? null;
 }
 
@@ -253,6 +264,14 @@ export async function prepararExecucao(deps: Dependencias, modo: Modo): Promise<
     return { tipo: "ignorada", motivo } as const;
   };
 
+  // Trava mecânica: sem a política revista, nada de Garmin, nem com a chave cadastrada.
+  if (!deps.liberada) {
+    if (estado.erroCodigo !== "nao_liberada") {
+      await registrarCodigoNoEstado(banco, "nao_liberada", iso);
+    }
+    return ignorar("nao_liberada");
+  }
+
   if (chave.tipo !== "ok") {
     const status: StatusDaChave = chave.tipo === "ausente" ? "ausente" : "mal_formada";
     registrar({ evento: chave.tipo === "ausente" ? "chave_ausente" : "chave_mal_formada" });
@@ -291,7 +310,7 @@ export async function prepararExecucao(deps: Dependencias, modo: Modo): Promise<
     // A execução anterior foi cortada (por exemplo, pelo limite de CPU): fica visível no painel
     // até uma execução terminar bem.
     registrar({ evento: "execucao_anterior_interrompida" });
-    await registrarInterrupcao(banco, iso);
+    await registrarCodigoNoEstado(banco, "execucao_interrompida", iso);
     orcamento.d1 += 1;
   }
 
@@ -485,7 +504,7 @@ async function executar(
     const feitos = new Set<Fluxo>();
     const comProblema = new Set<Fluxo>();
     while (sit.janelas < ORCAMENTO[modo].janelas) {
-      const fluxo = proximoFluxo(progresso, new Set([...feitos, ...comProblema]), modo);
+      const fluxo = proximoFluxo(progresso, new Set([...feitos, ...comProblema]));
       const p = fluxo === null ? undefined : progresso.get(fluxo);
       if (fluxo === null || p === undefined) break;
       if (!orcamento.cabe(2, 1)) {

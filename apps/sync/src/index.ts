@@ -41,7 +41,14 @@ function lerChave(env: Env): ChaveDoCofre {
   try {
     return {
       tipo: "ok",
-      cliente: criarClienteGarmin({ chave: GarminKey.de(env.GARMIN_API_KEY), cacheDeToken }),
+      cliente: criarClienteGarmin({
+        chave: GarminKey.de(env.GARMIN_API_KEY),
+        cacheDeToken,
+        // Item inválido é descartado e contado: só a quantidade vai para o log.
+        aoDescartar: (fluxo, quantidade) => {
+          registrarNoConsole({ evento: "itens_descartados", fluxo, quantidade });
+        },
+      }),
     };
   } catch (erro) {
     if (erro instanceof ChaveMalFormadaError) return { tipo: "mal_formada" };
@@ -53,6 +60,7 @@ function dependencias(env: Env): Dependencias {
   const vence = env.GARMIN_CHAVE_VENCE_EM?.trim();
   return {
     banco: criarBanco(env.DB),
+    liberada: env.POLITICA_REVISTA === "sim",
     chave: lerChave(env),
     venceEm: vence !== undefined && ehData(vence) ? vence : null,
     agora: () => new Date(),
@@ -98,8 +106,12 @@ export default {
       const inicio = await iniciar(env, manual ? "manual" : "ao_abrir");
       if ("resposta" in inicio) return inicio.resposta;
       if (manual) {
-        // O botão espera e conta o que de fato aconteceu.
-        return responder(resultadoParaOSite(await inicio.executar()));
+        // O botão espera e conta o que de fato aconteceu. A execução também fica sob
+        // `waitUntil`: se a conexão cair no meio, ela termina e solta a trava em vez de ser
+        // cancelada e deixar a trava presa por 5 minutos.
+        const execucao = inicio.executar();
+        ctx.waitUntil(execucao.then(() => undefined, falhaSemDetalhe));
+        return responder(resultadoParaOSite(await execucao));
       }
       // Ao abrir a página, ninguém espera: responde na hora e continua em segundo plano.
       ctx.waitUntil(inicio.executar().then(() => undefined, falhaSemDetalhe));

@@ -41,7 +41,7 @@ describe("Worker sync: portas /ao-abrir e /atualizar", () => {
   });
 
   it("só responde a POST /atualizar e POST /ao-abrir; o resto é 404", async () => {
-    const env: Env = { DB: criarD1EmMemoria().d1 };
+    const env: Env = { DB: criarD1EmMemoria().d1, POLITICA_REVISTA: "sim" };
     const { ctx } = contexto();
     for (const [caminho, metodo] of [
       ["/atualizar", "GET"],
@@ -63,7 +63,11 @@ describe("Worker sync: portas /ao-abrir e /atualizar", () => {
     });
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     const memoria = criarD1EmMemoria();
-    const resposta = await worker.fetch(pedir("/atualizar"), { DB: memoria.d1 }, contexto().ctx);
+    const resposta = await worker.fetch(
+      pedir("/atualizar"),
+      { DB: memoria.d1, POLITICA_REVISTA: "sim" },
+      contexto().ctx,
+    );
     expect(await resposta.json()).toEqual({ resultado: "sem_chave" });
     expect(chamadas).toEqual([]);
     const foto = await lerFotoDaSincronizacao(criarBanco(memoria.d1));
@@ -78,6 +82,7 @@ describe("Worker sync: portas /ao-abrir e /atualizar", () => {
       DB: memoria.d1,
       GARMIN_API_KEY: CHAVE_FALSA,
       GARMIN_CHAVE_VENCE_EM: "2027-03-01",
+      POLITICA_REVISTA: "sim",
     };
     const { ctx, terminar } = contexto();
 
@@ -101,7 +106,7 @@ describe("Worker sync: portas /ao-abrir e /atualizar", () => {
     vi.stubGlobal("fetch", garminQueRecusa().fetch);
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     const memoria = criarD1EmMemoria();
-    const env: Env = { DB: memoria.d1, GARMIN_API_KEY: CHAVE_FALSA };
+    const env: Env = { DB: memoria.d1, GARMIN_API_KEY: CHAVE_FALSA, POLITICA_REVISTA: "sim" };
     const resposta = await worker.fetch(pedir("/atualizar"), env, contexto().ctx);
     expect(resposta.status).toBe(200);
     expect(await resposta.json()).toEqual({ resultado: "chave_recusada" });
@@ -114,7 +119,12 @@ describe("Worker sync: portas /ao-abrir e /atualizar", () => {
     const memoria = criarD1EmMemoria();
     await worker.fetch(
       pedir("/atualizar"),
-      { DB: memoria.d1, GARMIN_API_KEY: "  ", GARMIN_CHAVE_VENCE_EM: "amanhã" },
+      {
+        DB: memoria.d1,
+        GARMIN_API_KEY: "  ",
+        GARMIN_CHAVE_VENCE_EM: "amanhã",
+        POLITICA_REVISTA: "sim",
+      },
       contexto().ctx,
     );
     const foto = await lerFotoDaSincronizacao(criarBanco(memoria.d1));
@@ -127,7 +137,7 @@ describe("Worker sync: portas /ao-abrir e /atualizar", () => {
     const memoria = criarD1EmMemoria();
     const resposta = await worker.fetch(
       pedir("/atualizar"),
-      { DB: memoria.d1, GARMIN_API_KEY: `"${CHAVE_FALSA}"` },
+      { DB: memoria.d1, GARMIN_API_KEY: `"${CHAVE_FALSA}"`, POLITICA_REVISTA: "sim" },
       contexto().ctx,
     );
     expect(await resposta.json()).toEqual({ resultado: "sem_chave" });
@@ -146,6 +156,7 @@ describe("Worker sync: portas /ao-abrir e /atualizar", () => {
         throw new Error(`falha ao abrir o banco com ${segredo}`);
       },
       GARMIN_API_KEY: CHAVE_FALSA,
+      POLITICA_REVISTA: "sim",
     } as unknown as Env;
     for (const caminho of ["/atualizar", "/ao-abrir"]) {
       const resposta = await worker.fetch(pedir(caminho), envQuebrado, contexto().ctx);
@@ -155,5 +166,50 @@ describe("Worker sync: portas /ao-abrir e /atualizar", () => {
     expect(linhas.join("\n")).not.toContain(segredo);
     expect(linhas.join("\n")).not.toContain(CHAVE_FALSA);
     expect(linhas.every((l) => l === '{"evento":"erro_interno"}')).toBe(true);
+  });
+
+  it("trava mecânica: com POLITICA_REVISTA diferente de 'sim', nenhuma chamada à Garmin, mesmo com a chave", async () => {
+    const chamadas: string[] = [];
+    vi.stubGlobal("fetch", (url: string) => {
+      chamadas.push(url);
+      return Promise.reject(new Error("não devia chamar a Garmin"));
+    });
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    for (const liberada of [undefined, "nao", "SIM", "true", ""]) {
+      const memoria = criarD1EmMemoria();
+      const env: Env = {
+        DB: memoria.d1,
+        GARMIN_API_KEY: CHAVE_FALSA,
+        GARMIN_CHAVE_VENCE_EM: "2027-03-01",
+        ...(liberada === undefined ? {} : { POLITICA_REVISTA: liberada }),
+      };
+      for (const caminho of ["/atualizar", "/ao-abrir"]) {
+        const resposta = await worker.fetch(pedir(caminho), env, contexto().ctx);
+        expect(await resposta.json(), `${String(liberada)} ${caminho}`).toEqual({
+          resultado: "nao_liberada",
+        });
+      }
+      const foto = await lerFotoDaSincronizacao(criarBanco(memoria.d1));
+      expect(foto.estado?.erroCodigo).toBe("nao_liberada");
+    }
+    expect(chamadas).toEqual([]);
+  });
+
+  it("o botão registra a execução em waitUntil (se a conexão cair, ela termina e solta a trava)", async () => {
+    vi.stubGlobal("fetch", garminQueRecusa().fetch);
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const memoria = criarD1EmMemoria();
+    const env: Env = { DB: memoria.d1, GARMIN_API_KEY: CHAVE_FALSA, POLITICA_REVISTA: "sim" };
+    const { ctx, terminar } = contexto();
+    const pendentes: unknown[] = [];
+    const original = ctx.waitUntil.bind(ctx);
+    ctx.waitUntil = (p: Promise<unknown>) => {
+      pendentes.push(p);
+      original(p);
+    };
+    await worker.fetch(pedir("/atualizar"), env, ctx);
+    expect(pendentes).toHaveLength(1);
+    await terminar();
+    expect((await lerFotoDaSincronizacao(criarBanco(memoria.d1))).estado?.travaAte).toBeNull();
   });
 });

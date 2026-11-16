@@ -370,54 +370,120 @@ describe("regras de janela e de rodízio", () => {
     });
   });
 
-  it("rodízio: o verificado há mais tempo vai primeiro; no botão, atividades antes", () => {
-    const todos = (verificados: Partial<Record<Fluxo, string | null>>) =>
+  it("ordem: quem não completou os 90 dias primeiro; depois atividades; depois o verificado há mais tempo", () => {
+    const todos = (
+      por: Partial<Record<Fluxo, { verificadoEm?: string | null; historicoCompleto?: boolean }>>,
+    ) =>
       new Map<Fluxo, ProgressoDoFluxo>(
         (["atividades", "resumo_diario", "sono", "hrv"] as const).map((fluxo) => [
           fluxo,
-          p({ fluxo, verificadoEm: verificados[fluxo] ?? null }),
+          p({ fluxo, ...por[fluxo] }),
         ]),
       );
     const vazio = new Set<Fluxo>();
-    expect(proximoFluxo(todos({}), vazio, "ao_abrir")).toBe("atividades");
+    // Tudo novo: atividades primeiro (vale ao abrir a página e no botão: não há mais "modo").
+    expect(proximoFluxo(todos({}), vazio)).toBe("atividades");
+    // Atividades já completas e os outros não: os incompletos vêm antes, o mais antigo primeiro.
     expect(
       proximoFluxo(
         todos({
-          atividades: "2026-11-15T10:00Z",
-          resumo_diario: "2026-11-15T09:00Z",
-          sono: "2026-11-15T11:00Z",
-          hrv: "2026-11-15T08:00Z",
+          atividades: { historicoCompleto: true, verificadoEm: "2026-11-15T08:00Z" },
+          resumo_diario: { verificadoEm: "2026-11-15T10:00Z" },
+          sono: { verificadoEm: "2026-11-15T11:00Z" },
+          hrv: { verificadoEm: "2026-11-15T09:00Z" },
         }),
         vazio,
-        "ao_abrir",
       ),
     ).toBe("hrv");
+    // Todos completos: atividades primeiro, mesmo sendo a verificada mais recentemente.
     expect(
       proximoFluxo(
         todos({
-          atividades: "2026-11-15T12:00Z",
-          resumo_diario: "2026-11-15T09:00Z",
-          sono: "2026-11-15T11:00Z",
-          hrv: "2026-11-15T08:00Z",
+          atividades: { historicoCompleto: true, verificadoEm: "2026-11-15T12:00Z" },
+          resumo_diario: { historicoCompleto: true, verificadoEm: "2026-11-15T09:00Z" },
+          sono: { historicoCompleto: true, verificadoEm: "2026-11-15T11:00Z" },
+          hrv: { historicoCompleto: true, verificadoEm: "2026-11-15T08:00Z" },
         }),
         vazio,
-        "manual",
       ),
     ).toBe("atividades");
     // Um fluxo já feito nesta execução não volta; sem candidatos, nada.
     expect(
-      proximoFluxo(todos({}), new Set(["atividades", "resumo_diario", "sono", "hrv"]), "manual"),
+      proximoFluxo(todos({}), new Set(["atividades", "resumo_diario", "sono", "hrv"])),
     ).toBeNull();
   });
 
-  it("ao abrir a página, nenhum fluxo fica sem vez: em 4 execuções todos recebem janela", async () => {
+  it("ao abrir a página, as atividades são a primeira janela de TODA execução", async () => {
     const a = montarAmbiente();
-    for (let i = 0; i < 2; i += 1) {
+    for (let i = 0; i < 3; i += 1) {
+      const antes = a.garmin.requisicoes.length;
       await sincronizar(a.dependencias(), "ao_abrir");
+      const novas = a.garmin.requisicoes.slice(antes).filter((r) => r.metodo === "GET");
+      const primeiraDeDados = novas.find(
+        (r) => !r.caminho.includes("userprofile") && !r.caminho.includes("heartRateZones"),
+      );
+      expect(primeiraDeDados?.caminho, `execução ${String(i + 1)}`).toContain("activities");
       a.avancar(ONZE_MINUTOS);
     }
+  });
+
+  it("os 90 dias levam 28 janelas e, a 2 por execução, 15 aberturas (ou 15 cliques)", async () => {
+    for (const modo of ["ao_abrir", "manual"] as const) {
+      const a = montarAmbiente();
+      let execucoes = 0;
+      let janelas = 0;
+      for (; execucoes < 40;) {
+        const resumo = await sincronizar(a.dependencias(), modo);
+        execucoes += 1;
+        janelas += resumo.janelas;
+        a.avancar(ONZE_MINUTOS);
+        const foto = await lerFotoDaSincronizacao(a.banco);
+        if (foto.progresso.length === 4 && foto.progresso.every((x) => x.historicoCompleto)) break;
+      }
+      expect(janelas, modo).toBeGreaterThanOrEqual(28); // 7 de atividades, 4 de resumo, 10 de sono, 7 de HRV (+ vaga que sobra no fim)
+      expect(execucoes, modo).toBe(15);
+    }
+  });
+
+  it("a tentativa é registrada ao pegar a trava: execução cortada também segura a seguinte", async () => {
+    const a = montarAmbiente();
+    const primeira = await prepararExecucao(a.dependencias(), "ao_abrir");
+    expect(primeira.tipo).toBe("pronta"); // pegou a trava e "morreu" (como num corte por CPU)
+    const estado = (await lerFotoDaSincronizacao(a.banco)).estado;
+    expect(estado?.ultimaExecucaoEm).toBe(new Date(a.agora()).toISOString());
+    // Passou a trava de 5 min, mas ainda não os 10 min: abrir a página não tenta de novo.
+    a.avancar(6 * 60_000);
+    expect((await sincronizar(a.dependencias(), "ao_abrir")).resultado).toBe("muito_cedo");
+    expect(a.garmin.requisicoes).toHaveLength(0);
+    a.avancar(5 * 60_000);
+    expect((await sincronizar(a.dependencias(), "ao_abrir")).resultado).toBe("concluida");
+  });
+});
+
+describe("item inválido não derruba a janela", () => {
+  it("o item é descartado e contado, a janela avança e o resto entra", async () => {
+    const a = montarAmbiente({
+      dados: {
+        atividades: [
+          atividadeBruta(1, "2026-08-18"),
+          atividadeBruta(2, "2026-08-19", { duration: "muito-secreto" }),
+          atividadeBruta(3, "2026-08-20"),
+        ],
+        diasDeSaude: diasSeguidos("2026-08-17", 91),
+      },
+    });
+    await abrirAteCompletar(a);
+    const ids = (await a.banco.select({ id: atividade.id }).from(atividade)).map((l) => l.id);
+    expect(ids.sort()).toEqual([1, 3]);
+    expect(a.eventos).toContainEqual({
+      evento: "itens_descartados",
+      fluxo: "atividades",
+      quantidade: 1,
+    });
+    expect(JSON.stringify(a.eventos)).not.toContain("muito-secreto");
     const foto = await lerFotoDaSincronizacao(a.banco);
-    expect(foto.progresso.filter((x) => x.importadoAte !== null)).toHaveLength(4);
+    expect(foto.progresso.every((x) => x.historicoCompleto)).toBe(true);
+    expect(foto.estado?.erroCodigo).toBeNull(); // não é erro: foi um item isolado
   });
 });
 

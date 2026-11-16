@@ -5,6 +5,7 @@ export {
   validarJanela,
   type CacheDeToken,
   type ClienteGarmin,
+  MINIMO_PARA_ERRO_DE_FORMATO,
   type JanelaDeDatas,
   type OpcoesDoCliente,
   type PaginaDeAtividades,

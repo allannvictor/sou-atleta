@@ -1,6 +1,10 @@
 import { useState } from "react";
 
-import type { PainelDaGarmin, ResultadoDaAtualizacao } from "../server/garmin";
+import type {
+  PainelDaGarmin,
+  ProgressoDaImportacao,
+  ResultadoDaAtualizacao,
+} from "../server/garmin";
 
 /**
  * Quadro "Sua conta Garmin" da área fechada (issue #5): o aviso sobre a chave, o que fazer, a
@@ -46,15 +50,15 @@ const MENSAGENS_DO_BOTAO: Readonly<Record<ResultadoDaAtualizacao, string>> = {
   atualizada: "Pronto: buscamos os dados novos da Garmin.",
   atualizada_em_parte: "Buscamos uma parte dos dados. Veja o que ficou de fora nos avisos abaixo.",
   chave_recusada:
-    "A Garmin ainda recusou a chave. Confira se a chave nova e a data de vencimento foram cadastradas.",
-  token_recusado:
-    "A Garmin aceitou a chave, mas recusou o acesso aos dados. Isso é um ajuste do app, não um problema da sua chave.",
+    "A Garmin ainda recusou a chave. Confira se a chave nova foi cadastrada inteira, sem aspas.",
+  token_recusado: "A atualização não passou. Veja o aviso acima.",
   pausada: "A Garmin pediu para esperar. Tente de novo depois do horário indicado.",
   garmin_fora: "A Garmin não respondeu agora. Tente de novo mais tarde.",
   sem_chave: "A chave da Garmin ainda não está pronta. Veja os passos no aviso.",
   muito_cedo: "Uma atualização acabou de rodar. Espere um minuto e tente de novo.",
   ja_em_andamento: "Já existe uma atualização em andamento.",
   nao_configurada: "A sincronização ainda não está ligada.",
+  nao_liberada: "A sincronização com a Garmin ainda não foi liberada.",
   erro: "Não conseguimos atualizar agora. Tente de novo em instantes.",
 };
 
@@ -72,8 +76,8 @@ function Passos() {
         <li>
           Cadastre a chave <strong>e a nova data de vencimento</strong> (<code>GARMIN_API_KEY</code>{" "}
           e <code>GARMIN_CHAVE_VENCE_EM</code>) no cofre de segredos da Cloudflare, na Worker{" "}
-          <code>sou-atleta-sync</code>. O passo a passo está em{" "}
-          <code>docs/decisoes/0005-arquitetura.md</code>.
+          <code>sou-atleta-sync</code>, com o comando <code>wrangler secret put</code>. O passo a
+          passo está na decisão 0005 (arquitetura) do projeto.
         </li>
         <li>Toque em &ldquo;Atualizar agora&rdquo; para conferir.</li>
       </ol>
@@ -121,16 +125,15 @@ function textoDoAviso(
         comPassos: true,
       };
     case "vence": {
+      const data = chaveVenceEm === null ? "" : dataPorExtenso(chaveVenceEm);
       const prazo =
         aviso.dias === 0
-          ? "vence hoje"
-          : aviso.dias === 1
-            ? "vence em 1 dia"
-            : `vence em ${String(aviso.dias)} dias`;
+          ? `vence hoje${data === "" ? "" : ` (${data})`}`
+          : `${aviso.dias === 1 ? "vence em 1 dia" : `vence em ${String(aviso.dias)} dias`}${data === "" ? "" : `, em ${data}`}`;
       return {
         rotulo: "Aviso",
         titulo: "Chave perto do vencimento",
-        texto: `Sua chave da Garmin ${prazo}${quando}. Gere outra e cadastre no cofre antes disso, junto com a nova data de vencimento, para a sincronização não parar.`,
+        texto: `Sua chave da Garmin ${prazo}. Gere outra e cadastre no cofre antes disso, junto com a nova data de vencimento, para a sincronização não parar.`,
         comPassos: false,
       };
     }
@@ -148,13 +151,14 @@ function textoDoAviso(
 /** Como a última tentativa terminou, em palavras. */
 const RESULTADO_DA_TENTATIVA: Readonly<Record<string, string>> = {
   chave_invalida: "A Garmin recusou a chave.",
-  token_recusado: "A Garmin aceitou a chave, mas recusou o acesso aos dados.",
+  // token_recusado: o aviso acima já explica; a linha da tentativa só traz o horário.
   limite_garmin: "A Garmin pediu para esperar.",
   garmin_indisponivel: "A Garmin não respondeu direito.",
   rede: "Houve uma falha de conexão.",
   formato_inesperado: "Parte dos dados veio num formato que não esperávamos.",
   acesso_negado: "A Garmin não liberou parte dos dados.",
-  execucao_interrompida: "A tentativa anterior foi interrompida.",
+  execucao_interrompida:
+    "Uma tentativa parou no meio. O app continua de onde parou na próxima abertura da página ou no botão Atualizar agora.",
   erro_interno: "A tentativa não terminou.",
 };
 
@@ -164,10 +168,37 @@ export interface PainelGarminProps {
   readonly resultado: ResultadoDaAtualizacao | null;
   /** A abertura da página acabou de pedir uma sincronização. */
   readonly buscaPedida?: boolean;
+  /** Só para os prints e testes: começa no estado "Atualizando…" (o clique já foi dado). */
+  readonly enviandoInicialmente?: boolean;
 }
 
-export function PainelGarmin({ painel, resultado, buscaPedida = false }: PainelGarminProps) {
-  const [enviando, setEnviando] = useState(false);
+/** Texto da importação dos 3 meses, conforme anda ou por que parou. */
+function textoDaImportacao(importacao: ProgressoDaImportacao, pausadaAte: string | null): string {
+  const trazido =
+    importacao.ate === null
+      ? ""
+      : ` Já trouxemos${importacao.de === null ? "" : ` de ${diaEMes(importacao.de)}`} até ${diaEMes(importacao.ate)}.`;
+  switch (importacao.parada) {
+    case "chave":
+      return `A importação está parada até a chave funcionar.${trazido}`;
+    case "conector":
+      return `A importação está parada até o app ser ajustado.${trazido}`;
+    case "espera":
+      return `A importação está pausada${pausadaAte === null ? "" : ` até ${horaCurta(pausadaAte)}`}; o botão Atualizar agora funciona antes disso.${trazido}`;
+    case null:
+      return importacao.ate === null
+        ? "Trazendo seus últimos 3 meses."
+        : `Trazendo seus últimos 3 meses:${importacao.de === null ? "" : ` de ${diaEMes(importacao.de)}`} até ${diaEMes(importacao.ate)}.`;
+  }
+}
+
+export function PainelGarmin({
+  painel,
+  resultado,
+  buscaPedida = false,
+  enviandoInicialmente = false,
+}: PainelGarminProps) {
+  const [enviando, setEnviando] = useState(enviandoInicialmente);
   const aviso = painel.aviso === null ? null : textoDoAviso(painel.aviso, painel.chaveVenceEm);
   const problemaDoConector = painel.problema === "token_recusado";
 
@@ -184,6 +215,17 @@ export function PainelGarmin({ painel, resultado, buscaPedida = false }: PainelG
         </p>
       )}
 
+      {painel.situacao === "nao_liberada" && (
+        <div className="aviso" data-tipo="nao_liberada">
+          <p className="rotulo">Aviso</p>
+          <h3>Sincronização ainda não liberada</h3>
+          <p>
+            A sincronização com a Garmin ainda não foi liberada. Ela começa depois que a política de
+            privacidade for revista; até lá, o app não busca nada na Garmin.
+          </p>
+        </div>
+      )}
+
       {aviso !== null && (
         <div className="aviso" data-tipo={painel.aviso?.tipo}>
           <p className="rotulo">{aviso.rotulo}</p>
@@ -197,8 +239,8 @@ export function PainelGarmin({ painel, resultado, buscaPedida = false }: PainelG
           <p className="rotulo">Ajuste do app</p>
           <h3>A Garmin recusou o acesso aos dados</h3>
           <p>
-            A Garmin aceitou a sua chave, mas recusou o acesso aos dados. Isso quer dizer que o app
-            precisa de um ajuste; não gere outra chave por causa disso.
+            A Garmin aceitou a sua chave, mas recusou o acesso aos dados. Provavelmente é um ajuste
+            no app, e você não precisa gerar outra chave.
           </p>
         </div>
       )}
@@ -247,14 +289,7 @@ export function PainelGarmin({ painel, resultado, buscaPedida = false }: PainelG
           {painel.importacao?.emAndamento === true && (
             <div>
               <dt>Últimos 3 meses</dt>
-              <dd>
-                {painel.importacao.parada
-                  ? "A importação está parada até a chave funcionar."
-                  : "Trazendo seus últimos 3 meses"}
-                {painel.importacao.ate === null
-                  ? "."
-                  : `${painel.importacao.parada ? " Já trouxemos" : ":"} até ${diaEMes(painel.importacao.ate)}.`}
-              </dd>
+              <dd>{textoDaImportacao(painel.importacao, painel.pausadaAte)}</dd>
             </div>
           )}
           {painel.importacao?.emAndamento === false && (
@@ -267,20 +302,34 @@ export function PainelGarmin({ painel, resultado, buscaPedida = false }: PainelG
             <div>
               <dt>Garmin</dt>
               <dd>
-                A Garmin pediu para esperar. O app volta a buscar depois das{" "}
-                <time dateTime={painel.pausadaAte}>{horaCurta(painel.pausadaAte)}</time>.
+                {painel.problema === "limite_garmin" ? (
+                  <>
+                    A Garmin pediu para esperar. O app volta a buscar depois das{" "}
+                    <time dateTime={painel.pausadaAte}>{horaCurta(painel.pausadaAte)}</time>.
+                  </>
+                ) : (
+                  <>
+                    O app espera até{" "}
+                    <time dateTime={painel.pausadaAte}>{horaCurta(painel.pausadaAte)}</time> para
+                    tentar de novo sozinho. O botão Atualizar agora funciona antes disso.
+                  </>
+                )}
               </dd>
             </div>
           )}
         </dl>
       )}
 
-      {buscaPedida && resultado === null && (
-        <p>
-          Pedimos à Garmin os dados novos agora. Recarregue a página em um minuto para ver o
-          resultado.
-        </p>
-      )}
+      {buscaPedida &&
+        resultado === null &&
+        painel.situacao === "pronta" &&
+        painel.aviso?.tipo !== "ausente" &&
+        painel.aviso?.tipo !== "mal_formada" && (
+          <p>
+            Pedimos à Garmin os dados novos agora. Recarregue a página em um minuto para ver o
+            resultado.
+          </p>
+        )}
       {resultado !== null && (
         <p className="retorno" role="status">
           {MENSAGENS_DO_BOTAO[resultado]}

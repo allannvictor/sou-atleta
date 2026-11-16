@@ -14,11 +14,15 @@ import {
 } from "./erros.js";
 import {
   detalheDaAtividadeSchema,
-  hrvSchema,
-  listaDeAtividadesSchema,
+  hrvBruto,
+  itemDeAtividade,
+  itemDeHrv,
+  itemDeResumoDiario,
+  itemDeSono,
+  listaDeAtividadesBruta,
   perfilSchema,
-  resumosDiariosSchema,
-  sonoSchema,
+  resumosDiariosBruto,
+  sonoBruto,
   tokenSchema,
   zonasSchema,
 } from "./esquemas.js";
@@ -63,7 +67,18 @@ export interface OpcoesDoCliente {
   readonly urlBase?: string;
   /** Passe o mesmo cache em várias execuções do mesmo processo para reaproveitar o token. */
   readonly cacheDeToken?: CacheDeToken;
+  /**
+   * Chamado quando itens inválidos de uma lista são descartados (só a quantidade, nunca o
+   * conteúdo): quem usa registra um evento de lista fechada.
+   */
+  readonly aoDescartar?: (fluxo: Fluxo, quantidade: number) => void;
 }
+
+/**
+ * Se todos os itens de uma lista com pelo menos este tamanho são inválidos, o formato mudou
+ * (não é um item isolado): vira erro de formato em vez de descartar tudo e avançar o progresso.
+ */
+export const MINIMO_PARA_ERRO_DE_FORMATO = 3;
 
 export interface JanelaDeDatas {
   /** Primeiro dia, inclusive (`YYYY-MM-DD`). */
@@ -79,8 +94,6 @@ export interface PaginaDeAtividades extends JanelaDeDatas {
 }
 
 export interface ClienteGarmin {
-  /** A atividade mais antiga da conta, ou `null` se não há nenhuma. Sem janela de datas. */
-  primeiraAtividade(): Promise<AtividadeGarmin | null>;
   atividades(pagina: PaginaDeAtividades): Promise<AtividadeGarmin[]>;
   origemDeFc(atividadeId: number): Promise<OrigemDeFc>;
   zonasDeFc(): Promise<ZonaFcGarmin[]>;
@@ -130,6 +143,7 @@ export function criarClienteGarmin(opcoes: OpcoesDoCliente): ClienteGarmin {
   const dormir = opcoes.dormir ?? dormirDeVerdade;
   const urlBase = opcoes.urlBase ?? URL_BASE_PADRAO;
   const cache = opcoes.cacheDeToken ?? criarCacheDeToken();
+  const aoDescartar = opcoes.aoDescartar ?? (() => undefined);
 
   let requisicoes = 0;
   let ultimaRequisicaoEm: number | null = null;
@@ -282,31 +296,43 @@ export function criarClienteGarmin(opcoes: OpcoesDoCliente): ClienteGarmin {
     }
   }
 
-  return {
-    async primeiraAtividade() {
-      const lista = await consultar(
-        "/activitylist-service/activities/search/activities",
-        "/activitylist-service/activities/search/activities",
-        { start: 0, limit: 1, sortOrder: "asc" },
-        listaDeAtividadesSchema,
-        { vazioEm204: [] },
-      );
-      return lista[0] ?? null;
-    },
+  /** Valida item por item: descarta e conta os inválidos; erro se a lista toda é inválida. */
+  function itensValidos<T>(
+    brutos: readonly unknown[],
+    esquema: ZodType<T>,
+    fluxo: Fluxo,
+    endpoint: string,
+  ): T[] {
+    const validos: T[] = [];
+    for (const bruto of brutos) {
+      const analise = esquema.safeParse(bruto);
+      if (analise.success) validos.push(analise.data);
+    }
+    const descartados = brutos.length - validos.length;
+    if (descartados === 0) return validos;
+    if (validos.length === 0 && brutos.length >= MINIMO_PARA_ERRO_DE_FORMATO) {
+      throw new RespostaInesperadaError(endpoint, ["itens"]);
+    }
+    aoDescartar(fluxo, descartados);
+    return validos;
+  }
 
+  return {
     async atividades({ de, ate, inicio, limite = ATIVIDADES_POR_PAGINA }) {
       validarJanela("atividades", { de, ate });
       if (!Number.isInteger(inicio) || inicio < 0) throw new RangeError("Posição inválida.");
       if (!Number.isInteger(limite) || limite < 1 || limite > ATIVIDADES_POR_PAGINA) {
         throw new RangeError(`O limite por página vai de 1 a ${String(ATIVIDADES_POR_PAGINA)}.`);
       }
-      return consultar(
-        "/activitylist-service/activities/search/activities",
-        "/activitylist-service/activities/search/activities",
+      const endpoint = "/activitylist-service/activities/search/activities";
+      const brutos = await consultar(
+        endpoint,
+        endpoint,
         { startDate: de, endDate: ate, start: inicio, limit: limite, sortOrder: "asc" },
-        listaDeAtividadesSchema,
+        listaDeAtividadesBruta,
         { vazioEm204: [] },
       );
+      return itensValidos(brutos, itemDeAtividade, "atividades", endpoint);
     },
 
     async origemDeFc(atividadeId) {
@@ -341,37 +367,43 @@ export function criarClienteGarmin(opcoes: OpcoesDoCliente): ClienteGarmin {
       );
     },
 
-    hrv(janela) {
+    async hrv(janela) {
       validarJanela("hrv", janela);
-      return consultar(
-        "/hrv-service/hrv/daily/{fromDate}/{toDate}",
+      const endpoint = "/hrv-service/hrv/daily/{fromDate}/{toDate}";
+      const brutos = await consultar(
+        endpoint,
         `/hrv-service/hrv/daily/${janela.de}/${janela.ate}`,
         {},
-        hrvSchema,
+        hrvBruto,
         { vazioEm204: [] },
       );
+      return itensValidos(brutos, itemDeHrv, "hrv", endpoint);
     },
 
-    sono(janela) {
+    async sono(janela) {
       validarJanela("sono", janela);
-      return consultar(
-        "/sleep-service/sleep/dailySleepSummariesByDate",
-        "/sleep-service/sleep/dailySleepSummariesByDate",
+      const endpoint = "/sleep-service/sleep/dailySleepSummariesByDate";
+      const brutos = await consultar(
+        endpoint,
+        endpoint,
         { startDate: janela.de, endDate: janela.ate },
-        sonoSchema,
+        sonoBruto,
         { vazioEm204: [] },
       );
+      return itensValidos(brutos, itemDeSono, "sono", endpoint);
     },
 
-    resumosDiarios(janela) {
+    async resumosDiarios(janela) {
       validarJanela("resumo_diario", janela);
-      return consultar(
-        "/usersummary-service/v2/dailysummaries",
-        "/usersummary-service/v2/dailysummaries",
+      const endpoint = "/usersummary-service/v2/dailysummaries";
+      const brutos = await consultar(
+        endpoint,
+        endpoint,
         { startDate: janela.de, endDate: janela.ate },
-        resumosDiariosSchema,
+        resumosDiariosBruto,
         { vazioEm204: [] },
       );
+      return itensValidos(brutos, itemDeResumoDiario, "resumo_diario", endpoint);
     },
 
     requisicoesFeitas: () => requisicoes,

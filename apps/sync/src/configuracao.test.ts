@@ -64,9 +64,31 @@ describe("wrangler.jsonc da Worker sync", () => {
 
   it("não traz nenhum valor de segredo no arquivo (a chave e a data entram por `wrangler secret put`)", () => {
     const texto = readFileSync(SYNC, "utf8");
-    expect(texto).not.toMatch(/"vars"/);
+    // A única variável é a trava mecânica, e ela não é segredo.
+    expect(texto.match(/"vars"/g)).toHaveLength(1);
     expect(texto).not.toMatch(/GARMIN_API_KEY["']?\s*:/);
     expect(texto).not.toMatch(/GARMIN_CHAVE_VENCE_EM["']?\s*:/);
+  });
+});
+
+describe("trava mecânica POLITICA_REVISTA (issue #29)", () => {
+  const vars = z.object({ vars: z.object({ POLITICA_REVISTA: z.enum(["nao", "sim"]) }) });
+  const valor = vars.parse(lerJsonc(SYNC)).vars.POLITICA_REVISTA;
+
+  it("existe, só aceita 'nao' ou 'sim' e começa travada", () => {
+    expect(["nao", "sim"]).toContain(valor);
+  });
+
+  it("só pode ser 'sim' depois que a política revista diz que o conector está ativo", () => {
+    if (valor === "nao") return;
+    // A política de hoje afirma que o site "ainda não está conectado a nenhuma conta Garmin".
+    // Com a trava aberta, essa frase seria falsa: a política precisa ter sido reescrita antes.
+    const politica = readFileSync(
+      new URL("../../web/app/routes/privacidade.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(politica).not.toMatch(/ainda não está conectado a nenhuma conta Garmin/);
+    expect(politica).not.toMatch(/ainda não trata dados de saúde/);
   });
 });
 

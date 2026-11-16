@@ -384,23 +384,63 @@ describe("validação das respostas (Zod)", () => {
     await expect(cliente.hrv(JANELA)).resolves.toEqual([]);
   });
 
-  it("campo obrigatório faltando ou de tipo errado é rejeitado com erro claro, sem os valores", async () => {
+  it("lista inteira com itens inválidos (formato mudou) é erro claro, sem os valores", async () => {
     const quebradas = [
       atividadeBruta(7, "2026-11-02", { startTimeLocal: undefined }),
       atividadeBruta(8, "2026-11-02", { duration: "muito" }),
       atividadeBruta(9, "2026-11-02", { activityType: { typeKey: 123 } }),
       atividadeBruta(10, "2026-11-02", { averageHR: "alta-secreta" }),
     ];
-    for (const quebrada of quebradas) {
-      const { cliente } = montar({ atividades: [quebrada] });
-      const erro = await cliente.atividades({ ...JANELA, inicio: 0 }).catch((e: unknown) => e);
-      expect(erro).toBeInstanceOf(RespostaInesperadaError);
-      const e = erro as RespostaInesperadaError;
-      expect(e.campos.length).toBeGreaterThan(0);
-      expect(e.message).toContain("formato esperado");
-      expect(e.message).not.toContain("alta-secreta");
-      expect(e.message).not.toContain("muito");
-    }
+    const { cliente } = montar({ atividades: quebradas });
+    const erro = await cliente.atividades({ ...JANELA, inicio: 0 }).catch((e: unknown) => e);
+    expect(erro).toBeInstanceOf(RespostaInesperadaError);
+    const e = erro as RespostaInesperadaError;
+    expect(e.campos).toEqual(["itens"]);
+    expect(e.message).toContain("formato esperado");
+    expect(e.message).not.toContain("alta-secreta");
+    expect(e.message).not.toContain("muito");
+  });
+
+  it("item inválido isolado é descartado e contado, e a janela segue (só a quantidade vai para fora)", async () => {
+    const descartes: [string, number][] = [];
+    let agora = 0;
+    const garmin = criarGarminFalsa({
+      chave: CHAVE,
+      agora: () => agora,
+      dados: {
+        atividades: [
+          atividadeBruta(1, "2026-11-02"),
+          atividadeBruta(2, "2026-11-02", { duration: "muito-secreto" }),
+          atividadeBruta(3, "2026-11-03"),
+        ],
+        diasDeSaude: ["2026-11-02", "2026-11-03"],
+      },
+    });
+    const cliente = criarClienteGarmin({
+      chave: GarminKey.de(CHAVE),
+      fetch: garmin.fetch,
+      agora: () => agora,
+      dormir: (ms) => {
+        agora += ms;
+        return Promise.resolve();
+      },
+      aoDescartar: (fluxo, quantidade) => descartes.push([fluxo, quantidade]),
+    });
+    const lista = await cliente.atividades({ ...JANELA, inicio: 0 });
+    expect(lista.map((a) => a.id)).toEqual([1, 3]);
+    expect(descartes).toEqual([["atividades", 1]]);
+    expect(JSON.stringify(descartes)).not.toContain("muito-secreto");
+    // Lista sem nenhum item inválido não chama o aviso.
+    descartes.length = 0;
+    await cliente.sono(JANELA);
+    expect(descartes).toEqual([]);
+  });
+
+  it("um único item, inválido, também é descartado (não há como saber se o formato mudou)", async () => {
+    const { cliente } = montar({
+      atividades: [atividadeBruta(7, "2026-11-02", { duration: "muito" })],
+    });
+    await expect(cliente.atividades({ ...JANELA, inicio: 0 })).resolves.toEqual([]);
   });
 
   it("corpo que não é JSON ou formato de token desconhecido também são erros claros", async () => {
@@ -449,14 +489,6 @@ describe("validação das respostas (Zod)", () => {
     expect(await cliente.origemDeFc(4)).toBe("desconhecido");
     expect(await cliente.origemDeFc(5)).toBe("desconhecido");
     expect(await cliente.origemDeFc(999)).toBe("desconhecido"); // apagada na Garmin (404)
-  });
-
-  it("primeira atividade: a mais antiga, ou nenhuma", async () => {
-    const a = montar({
-      atividades: [atividadeBruta(2, "2026-05-01"), atividadeBruta(1, "2020-01-10")],
-    });
-    expect((await a.cliente.primeiraAtividade())?.dataLocal).toBe("2020-01-10");
-    expect(await montar().cliente.primeiraAtividade()).toBeNull();
   });
 });
 
@@ -551,7 +583,6 @@ describe("redirecionamentos, tamanho e valores sentinela", () => {
       dormir: () => Promise.resolve(),
     });
     await expect(c.atividades({ ...JANELA, inicio: 0 })).resolves.toEqual([]);
-    await expect(c.primeiraAtividade()).resolves.toBeNull();
   });
 
   it("valores 'sem dados' da Garmin (-1, 0) não viram medida", async () => {
@@ -604,9 +635,7 @@ describe("redirecionamentos, tamanho e valores sentinela", () => {
         atividadeBruta(1, "2026-11-02", { startTimeLocal: "2026-11-02 07:00:00 e-mail@x.test" }),
       ],
     });
-    await expect(cliente.atividades({ ...JANELA, inicio: 0 })).rejects.toBeInstanceOf(
-      RespostaInesperadaError,
-    );
+    await expect(cliente.atividades({ ...JANELA, inicio: 0 })).resolves.toEqual([]);
     const frac = montar({
       atividades: [atividadeBruta(2, "2026-11-02", { startTimeLocal: "2026-11-02T07:00:00.031" })],
     });

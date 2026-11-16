@@ -111,7 +111,7 @@ A conta da Cloudflare está no **plano gratuito**. A página de limites do D1 (a
 
 > **NÃO cadastre a chave (o passo de `wrangler secret put GARMIN_API_KEY`) antes de a política revista e a issue #22 (pelo menos "Apagar minha conta" e "Desconectar a Garmin") estarem mescladas.**
 
-A política completa para o conector ativo fica **num PR separado (nova issue)**, e a #22 vem depois dela. Este PR (issue #5) só mudou o que o dono decidiu: cópias de segurança em 7 dias, os registros da sincronização e a data. O texto sobre a conexão com a Garmin, o consentimento e "ver, baixar e apagar" continua marcado "Ainda não ativo", e o conector fica inerte (sem chave, sem dado) até a trava ser liberada.
+A trava também é **mecânica**: `POLITICA_REVISTA` em `apps/sync/wrangler.jsonc` começa em `"nao"`, e a sync não fala com a Garmin enquanto não for `"sim"`; ela só muda no PR que fechar a #29, depois da #22 (0005). A política completa para o conector ativo fica **num PR separado (#29)**, e a #22 vem depois dela. Este PR (issue #5) só mudou o que o dono decidiu: cópias de segurança em 7 dias, os registros da sincronização e a data. O texto sobre a conexão com a Garmin, o consentimento e "ver, baixar e apagar" continua marcado "Ainda não ativo", e o conector fica inerte (sem chave, sem dado) até a trava ser liberada.
 
 ### Pendências para o PR da política (nova issue)
 

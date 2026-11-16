@@ -41,6 +41,12 @@
     },
   ],
 
+  // TRAVA MECÂNICA (decisão do dono, 16/11/2026): enquanto for "nao", a sync NÃO fala com a Garmin,
+  // mesmo com a chave cadastrada, e o painel diz "A sincronização com a Garmin ainda não foi
+  // liberada". Esta linha só muda para "sim" no PR que fechar a #29 (política de privacidade
+  // revista), depois da #22 (Apagar minha conta e Desconectar a Garmin). Um teste confere.
+  "vars": { "POLITICA_REVISTA": "nao" },
+
   // Segredos (NÃO ficam aqui; cadastre com `wrangler secret put`, só pelo prompt interativo):
   //   GARMIN_API_KEY         a chave pessoal da Garmin
   //   GARMIN_CHAVE_VENCE_EM  a data de vencimento dela, AAAA-MM-DD

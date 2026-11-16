@@ -217,5 +217,6 @@ export const CODIGOS_DE_ERRO = [
   "execucao_interrompida",
   "erro_interno",
   "token_recusado",
+  "nao_liberada",
 ] as const;
 export type CodigoDeErro = (typeof CODIGOS_DE_ERRO)[number];

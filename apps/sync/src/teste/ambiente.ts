@@ -34,6 +34,8 @@ export interface OpcoesDoAmbiente {
   readonly chave?: "ok" | "ausente" | "mal_formada";
   readonly venceEm?: string | null;
   readonly inicio?: string;
+  /** Trava `POLITICA_REVISTA`; padrão dos testes: liberada. */
+  readonly liberada?: boolean;
 }
 
 /** Tudo que um teste de sincronização precisa: banco, Garmin falsa, relógio e log capturado. */
@@ -56,6 +58,9 @@ export function montarAmbiente(opcoes: OpcoesDoAmbiente = {}) {
       chave: GarminKey.de(CHAVE_FALSA),
       fetch: garmin.fetch,
       agora,
+      aoDescartar: (fluxo, quantidade) => {
+        eventos.push({ evento: "itens_descartados", fluxo, quantidade });
+      },
       dormir: (ms) => {
         agoraMs += ms;
         return Promise.resolve();
@@ -70,6 +75,7 @@ export function montarAmbiente(opcoes: OpcoesDoAmbiente = {}) {
       modoDaChave === "ok" ? { tipo: "ok", cliente: novoCliente() } : { tipo: modoDaChave };
     return {
       banco,
+      liberada: opcoes.liberada ?? true,
       chave,
       venceEm: opcoes.venceEm === undefined ? "2027-03-01" : opcoes.venceEm,
       agora: () => new Date(agoraMs),
