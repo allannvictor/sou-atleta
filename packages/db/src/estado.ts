@@ -21,6 +21,32 @@ import {
 
 export const DIAS_DE_AVISO_ANTES_DE_VENCER = 14;
 
+/** A importação inicial traz só os últimos 3 meses (decisão do dono, 16/11/2026, 0002). */
+export const DIAS_DA_IMPORTACAO_INICIAL = 90;
+
+/**
+ * Abrir a área fechada pede uma sincronização, mas no máximo uma a cada 10 minutos: protege a
+ * cota da Garmin (que não publica o limite). O botão "Atualizar agora" ignora este intervalo.
+ */
+export const INTERVALO_MINIMO_AO_ABRIR_SEGUNDOS = 600;
+
+/** Resposta da Worker `sync` ao pedido de atualização, em palavras que o site sabe mostrar. */
+export const RESULTADOS_DA_ATUALIZACAO = [
+  "iniciada",
+  "atualizada",
+  "atualizada_em_parte",
+  "chave_recusada",
+  "token_recusado",
+  "pausada",
+  "garmin_fora",
+  "sem_chave",
+  "muito_cedo",
+  "ja_em_andamento",
+  "nao_configurada",
+  "erro",
+] as const;
+export type ResultadoDaAtualizacao = (typeof RESULTADOS_DA_ATUALIZACAO)[number];
+
 export interface EstadoDaSincronizacao {
   readonly statusDaChave: StatusDaChave;
   readonly chaveVenceEm: string | null;
@@ -130,7 +156,7 @@ export interface ResultadoDaTrava {
 }
 
 /**
- * Pega a trava de execução. Ela impede cron e "Atualizar agora" de rodarem juntos e expira
+ * Pega a trava de execução. Ela impede duas execuções (abrir a página e "Atualizar agora") de rodarem juntas e expira
  * sozinha, para uma execução cortada pelo limite de CPU não travar a sincronização para sempre.
  */
 export async function tentarPegarTrava(
@@ -162,7 +188,8 @@ export interface FimDaExecucao {
   readonly statusDaChave: StatusDaChave;
   readonly chaveVenceEm: string | null;
   readonly erroCodigo: CodigoDeErro | null;
-  readonly sucesso: boolean;
+  /** A execução de fato trouxe e gravou dados da Garmin: só então "última atualização" anda. */
+  readonly buscouDados: boolean;
   /** Verdadeiro se a execução chegou a rodar (e não foi só uma consulta ao estado). */
   readonly executou: boolean;
   readonly pausaAte: string | null;
@@ -180,7 +207,7 @@ export function registrarFimDaExecucao(banco: Banco, fim: FimDaExecucao, agora: 
       pausaAte: fim.pausaAte,
       falhasDeLimiteSeguidas: fim.falhasDeLimiteSeguidas,
       travaAte: null,
-      ...(fim.sucesso ? { ultimoSucessoEm: agora } : {}),
+      ...(fim.buscouDados ? { ultimoSucessoEm: agora } : {}),
       ...(fim.executou ? { ultimaExecucaoEm: agora } : {}),
       atualizadoEm: agora,
     })
@@ -260,5 +287,13 @@ export function registrarEstadoDaChave(
   return banco
     .update(sincronizacaoEstado)
     .set({ ...estado, atualizadoEm: agora })
+    .where(eq(sincronizacaoEstado.id, 1));
+}
+
+/** Marca que a execução anterior começou e não terminou (travou ou foi cortada pelo limite de CPU). */
+export function registrarInterrupcao(banco: Banco, agora: string) {
+  return banco
+    .update(sincronizacaoEstado)
+    .set({ erroCodigo: "execucao_interrompida", atualizadoEm: agora })
     .where(eq(sincronizacaoEstado.id, 1));
 }

@@ -144,6 +144,8 @@ export interface GarminFalsa {
   limparFalhas(): void;
   /** Troca os dados (por exemplo, uma atividade nova chegou). */
   trocarDados(dados: DadosDaGarmin): void;
+  /** Faz a troca da chave por token responder 200 com este corpo (formato desconhecido). */
+  corpoDoTokenEstranho(corpo: unknown): void;
 }
 
 const json = (corpo: unknown, status = 200, cabecalhos: Record<string, string> = {}) =>
@@ -155,6 +157,7 @@ const json = (corpo: unknown, status = 200, cabecalhos: Record<string, string> =
 export function criarGarminFalsa(opcoes: OpcoesDaGarminFalsa): GarminFalsa {
   let dados = opcoes.dados;
   let revogada = false;
+  let corpoEstranho: unknown;
   const requisicoes: RequisicaoRegistrada[] = [];
   const tokens = new Map<string, number>();
   const falhas = new Map<string, FalhaForcada>();
@@ -254,6 +257,7 @@ export function criarGarminFalsa(opcoes: OpcoesDaGarminFalsa): GarminFalsa {
       if (metodo !== "POST" || revogada || autorizacao !== `ApiKey ${opcoes.chave}`) {
         return Promise.resolve(json({ message: "Unauthorized" }, 401));
       }
+      if (corpoEstranho !== undefined) return Promise.resolve(json(corpoEstranho));
       const token = `token-falso-${String(tokens.size + 1)}`;
       tokens.set(token, opcoes.agora() + 24 * 60 * 60 * 1000);
       return Promise.resolve(
@@ -284,6 +288,9 @@ export function criarGarminFalsa(opcoes: OpcoesDaGarminFalsa): GarminFalsa {
     },
     trocarDados: (novos) => {
       dados = novos;
+    },
+    corpoDoTokenEstranho: (corpo) => {
+      corpoEstranho = corpo;
     },
   };
 }

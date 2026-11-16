@@ -319,3 +319,48 @@ p {
     width: 100%;
   }
 }
+
+.rotulo {
+  margin: 0 0 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+
+.aviso ol {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+}
+
+.aviso li {
+  margin-bottom: 0.25rem;
+}
+
+.aviso code {
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+/* Lista de descrição do estado: um bloco por informação, sem estilo novo. */
+.situacao {
+  margin: 0 0 1rem;
+}
+
+.situacao > div {
+  margin-bottom: 0.5rem;
+}
+
+.situacao dt {
+  font-weight: 700;
+}
+
+.situacao dd {
+  margin: 0;
+}
+
+.botao[aria-disabled="true"] {
+  opacity: 0.7;
+  cursor: progress;
+}

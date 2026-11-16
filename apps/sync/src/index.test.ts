@@ -27,13 +27,25 @@ function contexto() {
 const pedir = (caminho: string, metodo = "POST") =>
   new Request(`https://sync.interno${caminho}`, { method: metodo });
 
-describe("Worker sync: porta do botão Atualizar agora", () => {
-  it("só responde a POST /atualizar; o resto é 404", async () => {
-    const memoria = criarD1EmMemoria();
-    const env: Env = { DB: memoria.d1 };
+/** Garmin que recusa a chave: a execução termina na primeira requisição, sem pausas. */
+const garminQueRecusa = () =>
+  criarGarminFalsa({
+    chave: "outra-chave-qualquer-123456",
+    agora: () => Date.now(),
+    dados: historicoSintetico(),
+  });
+
+describe("Worker sync: portas /ao-abrir e /atualizar", () => {
+  it("não tem rotina agendada (Cron): só responde a pedidos do site", () => {
+    expect("scheduled" in worker).toBe(false);
+  });
+
+  it("só responde a POST /atualizar e POST /ao-abrir; o resto é 404", async () => {
+    const env: Env = { DB: criarD1EmMemoria().d1 };
     const { ctx } = contexto();
     for (const [caminho, metodo] of [
       ["/atualizar", "GET"],
+      ["/ao-abrir", "GET"],
       ["/", "POST"],
       ["/atualizar/x", "POST"],
       ["/estado", "GET"],
@@ -58,14 +70,8 @@ describe("Worker sync: porta do botão Atualizar agora", () => {
     expect(foto.estado?.statusDaChave).toBe("ausente");
   });
 
-  it("com a chave: responde 202 'iniciada' na hora e termina em segundo plano; a segunda chamada é recusada", async () => {
-    // Garmin que recusa a chave: a execução termina na primeira requisição, sem pausas.
-    const garmin = criarGarminFalsa({
-      chave: "outra-chave-qualquer-123456",
-      agora: () => Date.now(),
-      dados: historicoSintetico(),
-    });
-    vi.stubGlobal("fetch", garmin.fetch);
+  it("ao abrir a página: responde 202 'iniciada' na hora e termina em segundo plano; a abertura seguinte é recusada por 10 min", async () => {
+    vi.stubGlobal("fetch", garminQueRecusa().fetch);
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     const memoria = criarD1EmMemoria();
     const env: Env = {
@@ -75,7 +81,7 @@ describe("Worker sync: porta do botão Atualizar agora", () => {
     };
     const { ctx, terminar } = contexto();
 
-    const resposta = await worker.fetch(pedir("/atualizar"), env, ctx);
+    const resposta = await worker.fetch(pedir("/ao-abrir"), env, ctx);
     expect(resposta.status).toBe(202);
     expect(await resposta.json()).toEqual({ resultado: "iniciada" });
     await terminar();
@@ -87,6 +93,18 @@ describe("Worker sync: porta do botão Atualizar agora", () => {
       travaAte: null,
     });
 
+    const outra = await worker.fetch(pedir("/ao-abrir"), env, contexto().ctx);
+    expect(await outra.json()).toEqual({ resultado: "pausada" }); // chave recusada: pausa de 1 h
+  });
+
+  it("o botão espera o fim e diz o que de fato aconteceu: chave recusada, não 'iniciada'", async () => {
+    vi.stubGlobal("fetch", garminQueRecusa().fetch);
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const memoria = criarD1EmMemoria();
+    const env: Env = { DB: memoria.d1, GARMIN_API_KEY: CHAVE_FALSA };
+    const resposta = await worker.fetch(pedir("/atualizar"), env, contexto().ctx);
+    expect(resposta.status).toBe(200);
+    expect(await resposta.json()).toEqual({ resultado: "chave_recusada" });
     const outra = await worker.fetch(pedir("/atualizar"), env, contexto().ctx);
     expect(await outra.json()).toEqual({ resultado: "muito_cedo" });
   });
@@ -116,16 +134,26 @@ describe("Worker sync: porta do botão Atualizar agora", () => {
     const foto = await lerFotoDaSincronizacao(criarBanco(memoria.d1));
     expect(foto.estado?.statusDaChave).toBe("mal_formada");
   });
-});
 
-describe("Worker sync: cron", () => {
-  it("o gatilho agendado roda a sincronização e solta a trava", async () => {
-    vi.spyOn(console, "log").mockImplementation(() => undefined);
-    const memoria = criarD1EmMemoria();
-    const { ctx, terminar } = contexto();
-    worker.scheduled({} as ScheduledController, { DB: memoria.d1 }, ctx);
-    await terminar();
-    const foto = await lerFotoDaSincronizacao(criarBanco(memoria.d1));
-    expect(foto.estado).toMatchObject({ statusDaChave: "ausente", travaAte: null });
+  it("erro ao montar as dependências (banco quebrado) não escapa: 500 sem detalhe, log só com evento", async () => {
+    const linhas: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+      linhas.push(args.map(String).join(" "));
+    });
+    const segredo = `senha-do-banco-${CHAVE_FALSA}`;
+    const envQuebrado = {
+      get DB(): D1Database {
+        throw new Error(`falha ao abrir o banco com ${segredo}`);
+      },
+      GARMIN_API_KEY: CHAVE_FALSA,
+    } as unknown as Env;
+    for (const caminho of ["/atualizar", "/ao-abrir"]) {
+      const resposta = await worker.fetch(pedir(caminho), envQuebrado, contexto().ctx);
+      expect(resposta.status).toBe(500);
+      expect(await resposta.json()).toEqual({ resultado: "erro" });
+    }
+    expect(linhas.join("\n")).not.toContain(segredo);
+    expect(linhas.join("\n")).not.toContain(CHAVE_FALSA);
+    expect(linhas.every((l) => l === '{"evento":"erro_interno"}')).toBe(true);
   });
 });

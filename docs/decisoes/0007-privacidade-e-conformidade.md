@@ -14,7 +14,7 @@ O projeto é fechado e não comercial. Quando o dono avisar que vai virar comerc
 - Termos do Strava sobre IA e exibição de dados.
 - Registro da marca no INPI.
 - Revisão da política de privacidade e dos termos por advogado.
-- Planos gratuitos da Cloudflare e do GitHub.
+- Planos gratuitos da Cloudflare e do GitHub. Os prazos da política (cópias de segurança em 7 dias, registros da sync em 3 dias) valem só no plano gratuito: mudar de plano manda a política para revisão.
 
 ## Política de privacidade
 
@@ -60,7 +60,7 @@ Substitui a decisão "Ao desconectar ou sair: apagar todos os dados imediatament
 3. **Prazo de resposta:** "Respondemos em até 15 dias, ou antes, se a lei exigir prazo menor."
 4. **Inatividade:** os dados ficam até a pessoa apagar a conta ou até **24 meses sem uso**, com aviso por e-mail antes de apagar.
 
-Cópias de segurança podem levar um tempo para sumir por completo; a política informa "até 30 dias" (ver abaixo).
+Cópias de segurança podem levar um tempo para sumir por completo; a política informa "até 30 dias" (**substituído em 16/11/2026: "até 7 dias", ver a revisão da issue #5, abaixo**).
 
 Nesta etapa só o texto da política muda (`/privacidade`). Tudo que depende do conector continua marcado "Ainda não ativo". A data da política (`config.ts`) segue 15/11/2026: a revisão é do mesmo dia.
 
@@ -68,7 +68,7 @@ Nesta etapa só o texto da política muda (`/privacidade`). Tudo que depende do 
 
 Decisões do dono nesta rodada, como complemento da revisão acima:
 
-1. **Cópias de segurança: "até 30 dias".** O D1 Time Travel guarda 7 dias no plano Free e 30 no Paid, segundo páginas diferentes da Cloudflare; a política usa o maior número. O número real não consta na issue #5: conferir o plano e o armazenamento dos arquivos .FIT (R2) ali e encurtar o prazo se for o caso. Esse prazo precisa estar certo antes de qualquer dado real, ou seja, na #5.
+1. **Cópias de segurança: "até 30 dias"** (**substituído em 16/11/2026 por "até 7 dias", decisão A da issue #5, abaixo**). O D1 Time Travel guarda 7 dias no plano Free e 30 no Paid, segundo páginas diferentes da Cloudflare; a política usa o maior número. O número real não consta na issue #5: conferir o plano e o armazenamento dos arquivos .FIT (R2) ali e encurtar o prazo se for o caso. Esse prazo precisa estar certo antes de qualquer dado real, ou seja, na #5.
 2. **"Uso" nos 24 meses = entrar no app.** A sincronização automática não conta.
 3. **E-mail:** a seção 1 da política passa a citar o e-mail usado para entrar, só para avisos sobre a conta (aviso antes de apagar por falta de uso, aviso de incidente, confirmação de exclusão). Não é usado para publicidade.
 4. **Revogação por e-mail** é tratada como "Apagar minha conta": feita em até 15 dias, com confirmação por e-mail ao terminar.
@@ -76,7 +76,7 @@ Decisões do dono nesta rodada, como complemento da revisão acima:
 Ajustes de texto (sem decisão nova):
 
 - "Também avisamos a Garmin de que você desconectou" saiu do presente. A política diz "Na etapa seguinte (ainda não ativa), também avisaremos a Garmin...". A referência correta é a especificação OAuth2 PKCE da Garmin (acima), não o "acordo da Garmin".
-- "Apagar minha conta" diz "no app", fica junto da ressalva das cópias (até 30 dias), diz que não dá para desfazer e que a pessoa poderá baixar uma cópia antes.
+- "Apagar minha conta" diz "no app", fica junto da ressalva das cópias (até 30 dias; **hoje, "até 7 dias"**), diz que não dá para desfazer e que a pessoa poderá baixar uma cópia antes.
 - Quem desconecta fica sabendo que, para apagar o histórico, usa "Apagar minha conta". "Revogar o acesso na própria Garmin" é explicado: não é uma ação do app, é tirar a permissão pelo site ou app da Garmin; o histórico guardado no app continua até a conta ser apagada.
 - Termos explicados na primeira vez (sessão, sincronização, chave de acesso); "importado" virou "que já veio da Garmin".
 - O Resumo ganhou um quadro das três ações com link para a seção 7; as seções 2, 3 e 7 deixam o texto completo na 7. O prazo de 15 dias vale para pedidos por e-mail. A política diz como avisar sobre menores (e-mail do projeto). Referências de seção viram links. A etiqueta "Ainda não ativo" tem texto extra para leitor de tela. Vocabulário: "Conectar a Garmin" / "Desconectar a Garmin".
@@ -103,10 +103,31 @@ A conta da Cloudflare está no **plano gratuito**. A página de limites do D1 (a
 ### B. Workers Logs só na Worker de sincronização
 
 - Ligados só em `apps/sync` (retenção de 3 dias no plano gratuito); o site continua com logs desligados, e a política segue dizendo que o site não guarda registros de quem o visita.
-- A política (resumo e seção 4) passou a dizer, em linguagem simples e marcado "Ainda não ativo" até a rotina ser ligada: a rotina de sincronização guarda registros de eventos técnicos por 3 dias, no serviço de registros da Cloudflare; eles dizem só o que aconteceu; nunca levam a chave, a autorização temporária da Garmin nem dados de saúde.
+- A política (resumo e seção 4) passou a dizer, em linguagem simples e marcado "Ainda não ativo" até a rotina ser ligada (**o gatilho é publicar a Worker `sync`**, passo 5 do passo a passo da 0005, antes de existir chave): a rotina de sincronização guarda registros de eventos técnicos por 3 dias, no serviço de registros da Cloudflare; eles dizem só o que aconteceu; nunca levam a chave, a autorização temporária da Garmin nem dados de saúde.
 - Garantias técnicas e testes: ver a revisão de 16/11/2026 da decisão 0005.
 - Os registros automáticos de cada invocação ficam desligados na `sync` (decisão de engenharia, não do dono; reversível).
 
-### O que a política ainda diz "Ainda não ativo"
+### TRAVA: não cadastrar a chave antes da política revista e da #22 (decisão do dono, 16/11/2026)
 
-O texto sobre a conexão com a Garmin, o consentimento e "ver, baixar e apagar" continua marcado "Ainda não ativo", porque nada disso funciona até o dono cadastrar a chave. **Antes de cadastrar a chave (dado real entrando), a política precisa ser revista para refletir o que passa a valer** (regra desta decisão: "antes de qualquer dado real entrar, a política é atualizada, com nova data"), e as ações Sair, Desconectar a Garmin e Apagar minha conta (issue #22) devem existir.
+> **NÃO cadastre a chave (o passo de `wrangler secret put GARMIN_API_KEY`) antes de a política revista e a issue #22 (pelo menos "Apagar minha conta" e "Desconectar a Garmin") estarem mescladas.**
+
+A política completa para o conector ativo fica **num PR separado (nova issue)**, e a #22 vem depois dela. Este PR (issue #5) só mudou o que o dono decidiu: cópias de segurança em 7 dias, os registros da sincronização e a data. O texto sobre a conexão com a Garmin, o consentimento e "ver, baixar e apagar" continua marcado "Ainda não ativo", e o conector fica inerte (sem chave, sem dado) até a trava ser liberada.
+
+### Pendências para o PR da política (nova issue)
+
+Reunidas das revisões jurídica e de segurança do PR da #5, para o agente jurídico e o dono:
+
+- **Reescrever a política para o que passa a ser verdade com a chave** (Resumo e seções 1, 2, 3, 4, 6 e 7): "ainda não está conectado" e "ainda não trata dados de saúde" deixam de valer; a seção 7 hoje diz que "o site não guarda dados seus"; manter "Ainda não ativo" só no que continua futuro (tela de consentimento, ver e baixar, IA, cards, etapa 2).
+- **Seção 1 ("Quais dados"):** hoje diz "atividades de corrida"; o conector guarda atividades de **todas as modalidades** (decisão do dono, 0002) e também VO2max, Training Effect, Body Battery, FC de repouso e limiar, zonas de FC, fuso horário, dias de treino preferidos e hora de início. O fuso horário e o par hora local/GMT revelam a região aproximada. Dizer que a importação inicial traz só os **últimos 3 meses** e que o app só atualiza quando é aberto.
+- **"Uso" nos 24 meses:** diz que "a sincronização automática não conta"; agora a sincronização só roda ao abrir o app, então entrar é o único uso. "24 meses sem uso" e "aviso por e-mail" não existem em código: dizer o que existe (apagamento manual, a pedido).
+- Dizer que o **Cloudflare Access registra logins** (e-mail, IP e país; a página do Access não informa a retenção), hoje a política diz que "o projeto não guarda".
+- **Transferência internacional** (LGPD, arts. 33 a 36): começa quando a chave entra; o D1 criado sem dica de localização fica onde a Cloudflare escolher. O aviso precisa estar na política antes disso.
+- **Consentimento:** na etapa 1 só o dono usa o app, com os próprios dados; dizer a verdade (sem tela de consentimento ainda).
+- **Termos da Garmin** (só o dono viu): registrar em comentário na #5, sem copiar o texto, a data da leitura e um sim ou não para guardar cópia dos dados, processar em provedor de nuvem, uso em análise ou IA, mostrar em cards, apagar se a chave for revogada, regras de marca. Qualquer "não" ou "não sei" precisa de advogado.
+- **Linguagem do Resumo:** unificar "registros de funcionamento" e "registros de eventos técnicos"; separar a frase da sync em item próprio; trocar "lote" por "pedaço dos seus dados".
+- **Apagar conta (#22):** a chave é um segredo da Worker; o app não a apaga sem um token da API da Cloudflare (risco novo para a segurança decidir). Se "Desconectar" só marcar "desconectada" e parar de usar a chave, o dono a remove à mão e o texto diz isso. "Apagar tudo" cobre as 8 tabelas e não promete apagar o que está fora do app (logins no Access, Time Travel por 7 dias).
+- Precisa de advogado (#17): se a LGPD alcança o tratamento do próprio dono em uso particular (art. 4º, I) e, se alcançar, se a política e o consentimento em tela são exigidos já na etapa 1; a transferência internacional e sua base jurídica.
+
+### Antes de liberar amigos (etapa 2)
+
+Além das condições da etapa 2 acima: **não liberar nenhum e-mail de amigo em `/app` antes de existir isolamento por usuário** no banco (o D1 é de um dono só). Registrado também na 0005.

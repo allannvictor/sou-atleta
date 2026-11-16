@@ -216,5 +216,6 @@ export const CODIGOS_DE_ERRO = [
   "acesso_negado",
   "execucao_interrompida",
   "erro_interno",
+  "token_recusado",
 ] as const;
 export type CodigoDeErro = (typeof CODIGOS_DE_ERRO)[number];

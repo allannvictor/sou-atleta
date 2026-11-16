@@ -10,7 +10,11 @@ declare module "react-router" {
      * O que a área fechada usa para falar da Garmin: o banco (só leitura) e a ligação com a
      * Worker `sync`. Nunca a chave da Garmin, e nunca o `env` inteiro (que tem a lista de e-mails).
      */
-    garmin: { banco: D1Database | undefined; sync: Fetcher | undefined };
+    garmin: {
+      banco: D1Database | undefined;
+      sync: Fetcher | undefined;
+      aoFundo: (trabalho: Promise<unknown>) => void;
+    };
   }
 }
 
@@ -24,11 +28,21 @@ const manipulador = createRequestHandler(
 );
 
 export default {
-  fetch(request: Request, env: Env): Promise<Response> {
+  fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     return tratarRequisicao(
       request,
       env,
-      (req, nonce) => manipulador(req, { nonce, garmin: { banco: env.DB, sync: env.SYNC } }),
+      (req, nonce) =>
+        manipulador(req, {
+          nonce,
+          garmin: {
+            banco: env.DB,
+            sync: env.SYNC,
+            aoFundo: (trabalho) => {
+              ctx.waitUntil(trabalho);
+            },
+          },
+        }),
       {
         comCsp: !import.meta.env.DEV,
       },

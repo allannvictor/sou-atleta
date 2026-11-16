@@ -18,7 +18,7 @@ import { z } from "zod";
 
 const FLUXOS = ["atividades", "resumo_diario", "sono", "hrv"] as const;
 const ONDE = [...FLUXOS, "perfil", "zonas", "detalhe_da_atividade", "token"] as const;
-const MODOS = ["agendada", "manual"] as const;
+const MODOS = ["ao_abrir", "manual"] as const;
 const RESULTADOS = [
   "concluida",
   "parada_por_erro",
@@ -40,6 +40,7 @@ const esquemaDoEvento = z.discriminatedUnion("evento", [
     janelas: contagem,
     requisicoesGarmin: contagem,
     subrequests: contagem,
+    buscouDados: z.boolean(),
   }),
   z.strictObject({
     evento: z.literal("execucao_ignorada"),
@@ -51,14 +52,15 @@ const esquemaDoEvento = z.discriminatedUnion("evento", [
     evento: z.literal("janela_importada"),
     fluxo: z.enum(FLUXOS),
     itens: contagem,
-    historicoCompleto: z.boolean(),
+    importacaoInicialCompleta: z.boolean(),
   }),
-  z.strictObject({ evento: z.literal("historico_iniciado") }),
+  z.strictObject({ evento: z.literal("importacao_inicial_iniciada") }),
   z.strictObject({ evento: z.literal("perfil_atualizado") }),
   z.strictObject({ evento: z.literal("origem_de_fc_conferida"), atividades: contagem }),
   z.strictObject({ evento: z.literal("orcamento_esgotado") }),
   z.strictObject({ evento: z.literal("limite_garmin"), esperarSegundos: contagem }),
   z.strictObject({ evento: z.literal("chave_invalida") }),
+  z.strictObject({ evento: z.literal("token_recusado") }),
   z.strictObject({ evento: z.literal("chave_ausente") }),
   z.strictObject({ evento: z.literal("chave_mal_formada") }),
   z.strictObject({

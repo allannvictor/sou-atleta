@@ -1,4 +1,4 @@
-import { criarBanco } from "@sou-atleta/db";
+import { criarBanco, type ResultadoDaAtualizacao } from "@sou-atleta/db";
 import {
   ChaveMalFormadaError,
   criarCacheDeToken,
@@ -7,25 +7,31 @@ import {
   GarminKey,
 } from "@sou-atleta/garmin";
 
+import type { Modo } from "./limites.js";
 import { registrarNoConsole } from "./log.js";
 import {
   prepararExecucao,
-  sincronizar,
+  resultadoParaOSite,
   type ChaveDoCofre,
   type Dependencias,
 } from "./sincronizar.js";
 
 /**
- * Worker de sincronização com a Garmin (issue #5). Duas portas:
+ * Worker de sincronização com a Garmin (issue #5). Não há rotina agendada (decisão do dono,
+ * 16/11/2026): ela roda quando o site pede, por duas portas:
  *
- * - `scheduled`: o Cron Trigger (a cada 15 minutos, ver wrangler.jsonc);
- * - `fetch`: `POST /atualizar`, o botão "Atualizar agora". Esta Worker NÃO tem endereço público
- *   (`workers_dev` e `preview_urls` desligados, sem rotas): só a Worker do site chega aqui, pela
- *   ligação interna `SYNC`, e só depois de o Cloudflare Access e a validação do JWT liberarem
- *   `/app`. A chave da Garmin existe só dentro desta Worker.
+ * - `POST /ao-abrir`: o dono abriu a área fechada. Responde na hora e trabalha em segundo plano;
+ *   o site nem espera. No máximo uma execução a cada 10 minutos.
+ * - `POST /atualizar`: o botão "Atualizar agora". Espera o fim e responde o que aconteceu (não
+ *   diz "iniciada" quando a Garmin recusou a chave).
+ *
+ * Esta Worker NÃO tem endereço público (`workers_dev` e `preview_urls` desligados, sem rotas):
+ * só a Worker do site chega aqui, pela ligação interna `SYNC`, e só depois de o Cloudflare Access
+ * e a validação do JWT liberarem `/app`. A chave da Garmin existe só dentro desta Worker. Nunca
+ * adicione rota ou domínio a ela.
  */
 
-/** Token da Garmin guardado só na memória deste processo, para não trocar a chave a cada 15 min. */
+/** Token da Garmin guardado só na memória deste processo, para não trocar a chave a cada pedido. */
 const cacheDeToken = criarCacheDeToken();
 
 function lerChave(env: Env): ChaveDoCofre {
@@ -58,29 +64,49 @@ const falhaSemDetalhe = () => {
   registrarNoConsole({ evento: "erro_interno" });
 };
 
-export default {
-  scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): void {
-    ctx.waitUntil(
-      sincronizar(dependencias(env), "agendada").then(() => undefined, falhaSemDetalhe),
-    );
-  },
+const responder = (resultado: ResultadoDaAtualizacao, status = 200) =>
+  Response.json({ resultado }, { status });
 
+/** Prepara a execução; devolve o que responder ou o trabalho a fazer. */
+async function iniciar(env: Env, modo: Modo) {
+  // Dentro do try de quem chama: se montar as dependências lançar, a exceção não escapa.
+  const preparacao = await prepararExecucao(dependencias(env), modo);
+  if (preparacao.tipo === "ignorada") {
+    return {
+      resposta: responder(resultadoParaOSite({ ...SEM_TRABALHO, resultado: preparacao.motivo })),
+    };
+  }
+  return { executar: preparacao.executar };
+}
+
+const SEM_TRABALHO = {
+  janelas: 0,
+  requisicoesGarmin: 0,
+  subrequests: 0,
+  buscouDados: false,
+  erroCodigo: null,
+} as const;
+
+export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const { pathname } = new URL(request.url);
-    if (request.method !== "POST" || pathname !== "/atualizar") {
+    if (request.method !== "POST" || (pathname !== "/atualizar" && pathname !== "/ao-abrir")) {
       return new Response(null, { status: 404 });
     }
+    const manual = pathname === "/atualizar";
     try {
-      const preparacao = await prepararExecucao(dependencias(env), "manual");
-      if (preparacao.tipo === "ignorada") {
-        return Response.json({ resultado: preparacao.motivo });
+      const inicio = await iniciar(env, manual ? "manual" : "ao_abrir");
+      if ("resposta" in inicio) return inicio.resposta;
+      if (manual) {
+        // O botão espera e conta o que de fato aconteceu.
+        return responder(resultadoParaOSite(await inicio.executar()));
       }
-      // Responde já; o trabalho continua em segundo plano (até 30 s depois da resposta).
-      ctx.waitUntil(preparacao.executar().then(() => undefined, falhaSemDetalhe));
-      return Response.json({ resultado: "iniciada" }, { status: 202 });
+      // Ao abrir a página, ninguém espera: responde na hora e continua em segundo plano.
+      ctx.waitUntil(inicio.executar().then(() => undefined, falhaSemDetalhe));
+      return responder("iniciada", 202);
     } catch {
       falhaSemDetalhe();
-      return Response.json({ resultado: "erro" }, { status: 500 });
+      return responder("erro", 500);
     }
   },
 } satisfies ExportedHandler<Env>;

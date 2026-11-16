@@ -105,7 +105,7 @@ describe("trava de execução", () => {
         statusDaChave: "ok",
         chaveVenceEm: "2027-01-01",
         erroCodigo: null,
-        sucesso: true,
+        buscouDados: true,
         executou: true,
         pausaAte: null,
         falhasDeLimiteSeguidas: 0,

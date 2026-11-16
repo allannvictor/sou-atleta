@@ -8,12 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { registrarNoConsole, type EventoDeLog } from "./log.js";
 import { sincronizar } from "./sincronizar.js";
-import {
-  CHAVE_FALSA,
-  historicoSintetico,
-  montarAmbiente,
-  QUINZE_MINUTOS,
-} from "./teste/ambiente.js";
+import { CHAVE_FALSA, historicoSintetico, montarAmbiente, ONZE_MINUTOS } from "./teste/ambiente.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -36,17 +31,17 @@ async function rodarOFluxoInteiro(registrar: (evento: EventoDeLog) => void) {
       diasDeSaude: dados.diasDeSaude,
     },
   });
-  const executar = async (modo: "agendada" | "manual" = "agendada") => {
-    a.avancar(QUINZE_MINUTOS * 5);
+  const executar = async (modo: "ao_abrir" | "manual" = "ao_abrir") => {
+    a.avancar(ONZE_MINUTOS * 5);
     return sincronizar({ ...a.dependencias(), registrar }, modo);
   };
 
-  for (let i = 0; i < 12; i += 1) await executar(); // importação normal (e o formato quebrado)
-  a.garmin.forcarFalha("hrv-service", { status: 429, cabecalhos: { "Retry-After": "60" } });
-  await executar();
+  for (let i = 0; i < 14; i += 1) await executar(); // importação normal (e o formato quebrado)
+  a.garmin.forcarFalha("/hrv-service", { status: 429, cabecalhos: { "Retry-After": "60" } });
+  for (let i = 0; i < 4; i += 1) await executar();
   a.garmin.limparFalhas();
   a.garmin.forcarFalha("sleep-service", { status: 503, vezes: 1 });
-  await executar();
+  for (let i = 0; i < 4; i += 1) await executar();
   a.garmin.forcarFalha("userprofile", { status: 403, vezes: 1 });
   a.avancar(25 * 3_600_000);
   await executar("manual");
@@ -132,8 +127,8 @@ describe("minimização de dados", () => {
   it("GPS, local, nome, e-mail e foto da resposta da Garmin não chegam ao banco", async () => {
     const a = montarAmbiente();
     for (let i = 0; i < 15; i += 1) {
-      await sincronizar(a.dependencias(), "agendada");
-      a.avancar(QUINZE_MINUTOS);
+      await sincronizar(a.dependencias(), "ao_abrir");
+      a.avancar(ONZE_MINUTOS);
     }
     const despejo = a.memoria.despejo();
     expect(despejo).toContain("atividade:");
@@ -156,14 +151,14 @@ describe("minimização de dados", () => {
       dados: {
         ...dados,
         sensores: {
-          1000: [{ sourceType: "ANTPLUS", antplusDeviceType: "HEART_RATE" }],
-          1001: [{ sourceType: "LOCAL", localDeviceType: "WHR" }],
+          1016: [{ sourceType: "ANTPLUS", antplusDeviceType: "HEART_RATE" }],
+          1017: [{ sourceType: "LOCAL", localDeviceType: "WHR" }],
         },
       },
     });
     for (let i = 0; i < 60; i += 1) {
-      await sincronizar(a.dependencias(), "agendada");
-      a.avancar(QUINZE_MINUTOS);
+      await sincronizar(a.dependencias(), "ao_abrir");
+      a.avancar(ONZE_MINUTOS);
     }
     const tabelas = [atividade, diaHrv, diaSono, diaResumo, zonaFc, perfilTreino];
     for (const tabela of tabelas) {
@@ -174,9 +169,9 @@ describe("minimização de dados", () => {
     }
     const ativ = await a.banco.select().from(atividade);
     const porId = new Map(ativ.map((l) => [l.id, l]));
-    expect(porId.get(1000)).toMatchObject({ fcOrigem: "cinta", fcOrigemConferida: true });
-    expect(porId.get(1001)).toMatchObject({ fcOrigem: "pulso", fcOrigemConferida: true });
-    expect(porId.get(1002)).toMatchObject({ fcOrigem: "desconhecido", fcOrigemConferida: true });
+    expect(porId.get(1016)).toMatchObject({ fcOrigem: "cinta", fcOrigemConferida: true });
+    expect(porId.get(1017)).toMatchObject({ fcOrigem: "pulso", fcOrigemConferida: true });
+    expect(porId.get(1018)).toMatchObject({ fcOrigem: "desconhecido", fcOrigemConferida: true });
     expect(ativ.every((l) => ["pulso", "cinta", "desconhecido"].includes(l.fcOrigem))).toBe(true);
     const resumos = await a.banco.select().from(diaResumo);
     expect(resumos.every((l) => l.fcRepousoOrigem === "desconhecido")).toBe(true);

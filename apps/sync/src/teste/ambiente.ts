@@ -15,9 +15,12 @@ import type { ChaveDoCofre, Dependencias } from "../sincronizar.js";
 /** Chave e vencimento de mentira usados em todos os testes. */
 export const CHAVE_FALSA = "chave-de-mentira-0123456789abcdef";
 export const HOJE = "2026-11-15";
-export const QUINZE_MINUTOS = 15 * 60_000;
+export const ONZE_MINUTOS = 11 * 60_000;
+/** Primeiro dia da importação inicial (hoje menos 90 dias). */
+export const INICIO_DA_IMPORTACAO = "2026-08-17";
+export const dentroDosNoventaDias = (dia: string) => dia >= INICIO_DA_IMPORTACAO;
 
-/** Histórico sintético: uma atividade a cada 3 dias e saúde todos os dias. */
+/** Dados sintéticos: uma atividade a cada 3 dias (138 dias) e saúde todos os dias (198 dias). */
 export function historicoSintetico(): DadosDaGarmin {
   const dias = diasSeguidos("2026-07-01", 138); // até 2026-11-15
   const atividades = dias

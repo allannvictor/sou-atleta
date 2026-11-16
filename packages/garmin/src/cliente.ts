@@ -10,6 +10,7 @@ import {
   PedidoRecusadoError,
   RedeGarminError,
   RespostaInesperadaError,
+  TokenRecusadoError,
 } from "./erros.js";
 import {
   detalheDaAtividadeSchema,
@@ -28,6 +29,7 @@ import {
   JANELA_DIAS,
   MARGEM_DO_TOKEN_MS,
   PAUSA_ENTRE_REQUISICOES_MS,
+  TAMANHO_MAXIMO_DA_RESPOSTA,
   URL_BASE_PADRAO,
   VALIDADE_DO_TOKEN_MS,
 } from "./limites.js";
@@ -132,26 +134,44 @@ export function criarClienteGarmin(opcoes: OpcoesDoCliente): ClienteGarmin {
   let requisicoes = 0;
   let ultimaRequisicaoEm: number | null = null;
 
-  /** Toda requisição passa por aqui: respeita a pausa mínima e traduz falha de rede. */
-  async function enviar(url: string, init: RequestInit): Promise<Response> {
+  /**
+   * Toda requisição passa por aqui: respeita a pausa mínima, traduz falha de rede e NUNCA segue
+   * redirecionamento (`redirect: "manual"`): o cabeçalho `Authorization` leva a chave ou o token,
+   * e a API da Garmin não documenta nenhum redirecionamento. Qualquer 3xx vira erro.
+   */
+  async function enviar(url: string, init: RequestInit, endpoint: string): Promise<Response> {
     if (ultimaRequisicaoEm !== null) {
       const falta = ultimaRequisicaoEm + PAUSA_ENTRE_REQUISICOES_MS - agora();
       if (falta > 0) await dormir(falta);
     }
     ultimaRequisicaoEm = agora();
     requisicoes += 1;
+    let resposta: Response;
     try {
-      return await buscar(url, init);
+      resposta = await buscar(url, { ...init, redirect: "manual" });
     } catch {
       // Nada da exceção original é repassado: ela poderia trazer a URL ou cabeçalhos.
       throw new RedeGarminError();
     }
+    if (resposta.status >= 300 && resposta.status < 400) {
+      throw new PedidoRecusadoError(endpoint, resposta.status);
+    }
+    return resposta;
   }
 
   async function lerJson(resposta: Response, endpoint: string): Promise<unknown> {
+    const declarado = Number(resposta.headers.get("Content-Length") ?? 0);
+    if (declarado > TAMANHO_MAXIMO_DA_RESPOSTA) {
+      throw new RespostaInesperadaError(endpoint, ["tamanho"]);
+    }
     try {
-      return await resposta.json();
-    } catch {
+      const texto = await resposta.text();
+      if (texto.length > TAMANHO_MAXIMO_DA_RESPOSTA) {
+        throw new RespostaInesperadaError(endpoint, ["tamanho"]);
+      }
+      return JSON.parse(texto) as unknown;
+    } catch (erro) {
+      if (erro instanceof RespostaInesperadaError) throw erro;
       throw new RespostaInesperadaError(endpoint, []);
     }
   }
@@ -168,11 +188,19 @@ export function criarClienteGarmin(opcoes: OpcoesDoCliente): ClienteGarmin {
 
   async function pedirToken(): Promise<GarminToken> {
     const endpoint = "/personalapitoken-service/personal-api/personal-api-key/token";
-    const resposta = await enviar(`${urlBase}${endpoint}`, {
-      method: "POST",
-      headers: { Authorization: chave.cabecalhoDaTroca(), Accept: "application/json" },
-    });
-    if (resposta.status === 401 || resposta.status === 403) throw new ChaveInvalidaError();
+    const resposta = await enviar(
+      `${urlBase}${endpoint}`,
+      {
+        method: "POST",
+        headers: { Authorization: chave.cabecalhoDaTroca(), Accept: "application/json" },
+      },
+      endpoint,
+    );
+    // A troca não tem entrada variável: qualquer 4xx (menos o 429, que é "espere") quer dizer que
+    // a Garmin não aceitou a chave.
+    if (resposta.status >= 400 && resposta.status < 500 && resposta.status !== 429) {
+      throw new ChaveInvalidaError();
+    }
     if (!resposta.ok) falharPorStatus(resposta, endpoint);
     const bruto = await lerJson(resposta, endpoint);
     const analise = tokenSchema.safeParse(bruto);
@@ -214,14 +242,17 @@ export function criarClienteGarmin(opcoes: OpcoesDoCliente): ClienteGarmin {
     let renovou = false;
     for (;;) {
       const token = await tokenValido();
-      const resposta = await enviar(url, {
-        headers: { Authorization: token.cabecalho(), Accept: "application/json" },
-      });
+      const resposta = await enviar(
+        url,
+        { headers: { Authorization: token.cabecalho(), Accept: "application/json" } },
+        endpoint,
+      );
       if (resposta.status === 401) {
-        // Token vencido antes da hora ou revogado: pede outro uma vez. Se a Garmin voltar a
-        // recusar, a chave é o problema.
+        // Token vencido antes da hora: pede outro uma vez. Se a Garmin recusar também o token
+        // recém-emitido, a chave está boa (a troca acabou de funcionar): o problema é o jeito de
+        // enviar o token, e o aviso ao dono precisa dizer isso, não "chave expirada".
         cache.atual = null;
-        if (renovou) throw new ChaveInvalidaError();
+        if (renovou) throw new TokenRecusadoError();
         renovou = true;
         continue;
       }
@@ -258,6 +289,7 @@ export function criarClienteGarmin(opcoes: OpcoesDoCliente): ClienteGarmin {
         "/activitylist-service/activities/search/activities",
         { start: 0, limit: 1, sortOrder: "asc" },
         listaDeAtividadesSchema,
+        { vazioEm204: [] },
       );
       return lista[0] ?? null;
     },
@@ -273,6 +305,7 @@ export function criarClienteGarmin(opcoes: OpcoesDoCliente): ClienteGarmin {
         "/activitylist-service/activities/search/activities",
         { startDate: de, endDate: ate, start: inicio, limit: limite, sortOrder: "asc" },
         listaDeAtividadesSchema,
+        { vazioEm204: [] },
       );
     },
 

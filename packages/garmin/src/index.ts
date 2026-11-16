@@ -19,6 +19,7 @@ export {
   PedidoRecusadoError,
   RedeGarminError,
   RespostaInesperadaError,
+  TokenRecusadoError,
 } from "./erros.js";
 export * from "./limites.js";
 export type * from "./tipos.js";

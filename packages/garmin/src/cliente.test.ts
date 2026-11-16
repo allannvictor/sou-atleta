@@ -8,8 +8,10 @@ import {
   ChaveInvalidaError,
   GarminIndisponivelError,
   LimiteExcedidoError,
+  PedidoRecusadoError,
   RedeGarminError,
   RespostaInesperadaError,
+  TokenRecusadoError,
 } from "./erros.js";
 import {
   ATIVIDADES_POR_PAGINA,
@@ -20,6 +22,7 @@ import {
   JANELA_MAXIMA_OFICIAL_DIAS,
   MENOR_JANELA_OFICIAL_CONHECIDA_DIAS,
   PAUSA_ENTRE_REQUISICOES_MS,
+  TAMANHO_MAXIMO_DA_RESPOSTA,
 } from "./limites.js";
 import {
   atividadeBruta,
@@ -108,11 +111,23 @@ describe("troca da chave por token", () => {
     expect(garmin.requisicoes).toHaveLength(1);
   });
 
-  it("recusa na consulta duas vezes seguidas também é chave inválida", async () => {
+  it("token recém-emitido recusado nas consultas NÃO é chave inválida: é erro do conector", async () => {
     const { garmin, cliente } = montar();
     await cliente.perfil();
     garmin.forcarFalha("userprofile", { status: 401 });
-    await expect(cliente.perfil()).rejects.toBeInstanceOf(ChaveInvalidaError);
+    const erro = await cliente.perfil().catch((e: unknown) => e);
+    expect(erro).toBeInstanceOf(TokenRecusadoError);
+    expect(erro).not.toBeInstanceOf(ChaveInvalidaError);
+    expect((erro as TokenRecusadoError).codigo).toBe("token_recusado");
+    expect((erro as Error).message).not.toMatch(/expir|revog|gere outra/i);
+  });
+
+  it("qualquer 4xx na troca do token (menos 429) é chave recusada", async () => {
+    for (const status of [400, 401, 403, 404]) {
+      const { garmin, cliente } = montar();
+      garmin.forcarFalha("personal-api-key/token", { status });
+      await expect(cliente.perfil(), String(status)).rejects.toBeInstanceOf(ChaveInvalidaError);
+    }
   });
 
   it("o cache de token pode ser compartilhado entre clientes do mesmo processo", async () => {
@@ -442,5 +457,159 @@ describe("validação das respostas (Zod)", () => {
     });
     expect((await a.cliente.primeiraAtividade())?.dataLocal).toBe("2020-01-10");
     expect(await montar().cliente.primeiraAtividade()).toBeNull();
+  });
+});
+
+const comoTexto = (entrada: RequestInfo | URL): string =>
+  typeof entrada === "string" ? entrada : entrada instanceof URL ? entrada.href : entrada.url;
+
+describe("redirecionamentos, tamanho e valores sentinela", () => {
+  it("nenhuma requisição segue redirecionamento: 3xx vira erro e nada mais sai", async () => {
+    const pedidos: RequestInit[] = [];
+    const redireciona = (status: number) =>
+      criarClienteGarmin({
+        chave: GarminKey.de(CHAVE),
+        fetch: (_url, init) => {
+          pedidos.push(init ?? {});
+          return Promise.resolve(
+            new Response(null, { status, headers: { Location: "https://outro-host.test/roubar" } }),
+          );
+        },
+        dormir: () => Promise.resolve(),
+      });
+    for (const status of [301, 302, 307, 308]) {
+      pedidos.length = 0;
+      // Redirecionamento já na troca da chave: o cabeçalho com a chave não pode ir adiante.
+      await expect(redireciona(status).perfil()).rejects.toBeInstanceOf(PedidoRecusadoError);
+      expect(pedidos).toHaveLength(1);
+      expect(pedidos[0]?.redirect).toBe("manual");
+    }
+  });
+
+  it("toda requisição (troca e consultas) pede redirect manual", async () => {
+    const { garmin, cliente } = montar({ dias: ["2026-11-02"] });
+    const vistos: unknown[] = [];
+    const original = garmin.fetch;
+    const c = criarClienteGarmin({
+      chave: GarminKey.de(CHAVE),
+      fetch: (url, init) => {
+        vistos.push(init?.redirect);
+        return original(url, init);
+      },
+      dormir: () => Promise.resolve(),
+    });
+    await c.sono(JANELA);
+    await cliente.perfil();
+    expect(vistos).toEqual(["manual", "manual"]);
+  });
+
+  it("redirecionamento numa consulta (depois do token) também vira erro, sem segunda requisição", async () => {
+    const { garmin, cliente } = montar();
+    await cliente.perfil();
+    const antes = garmin.requisicoes.length;
+    garmin.forcarFalha("userprofile", { status: 302, cabecalhos: { Location: "https://x.test/" } });
+    await expect(cliente.perfil()).rejects.toBeInstanceOf(PedidoRecusadoError);
+    expect(garmin.requisicoes.length - antes).toBe(1);
+  });
+
+  it("resposta grande demais é recusada, com o tamanho declarado ou lido", async () => {
+    const grande = "x".repeat(TAMANHO_MAXIMO_DA_RESPOSTA + 1);
+    const comCorpo = (corpo: () => Response) =>
+      criarClienteGarmin({
+        chave: GarminKey.de(CHAVE),
+        fetch: (url) =>
+          Promise.resolve(
+            comoTexto(url).includes("token") ? Response.json({ access_token: "t" }) : corpo(),
+          ),
+        dormir: () => Promise.resolve(),
+      });
+    const lido = await comCorpo(() => new Response(grande))
+      .perfil()
+      .catch((e: unknown) => e);
+    expect(lido).toBeInstanceOf(RespostaInesperadaError);
+    expect((lido as RespostaInesperadaError).campos).toEqual(["tamanho"]);
+    const declarado = await comCorpo(
+      () =>
+        new Response("{}", {
+          headers: { "Content-Length": String(TAMANHO_MAXIMO_DA_RESPOSTA + 1) },
+        }),
+    )
+      .perfil()
+      .catch((e: unknown) => e);
+    expect(declarado).toBeInstanceOf(RespostaInesperadaError);
+  });
+
+  it("atividades com 204 (janela sem treino) é lista vazia, não erro", async () => {
+    const c = criarClienteGarmin({
+      chave: GarminKey.de(CHAVE),
+      fetch: (url) =>
+        Promise.resolve(
+          comoTexto(url).includes("token")
+            ? Response.json({ access_token: "t" })
+            : new Response(null, { status: 204 }),
+        ),
+      dormir: () => Promise.resolve(),
+    });
+    await expect(c.atividades({ ...JANELA, inicio: 0 })).resolves.toEqual([]);
+    await expect(c.primeiraAtividade()).resolves.toBeNull();
+  });
+
+  it("valores 'sem dados' da Garmin (-1, 0) não viram medida", async () => {
+    const { cliente } = montar({
+      atividades: [atividadeBruta(1, "2026-11-02", { averageHR: 0, maxHR: -1 })],
+    });
+    const [a] = await cliente.atividades({ ...JANELA, inicio: 0 });
+    expect(a).toMatchObject({ fcMedia: null, fcMaxima: null });
+
+    const garmin = criarGarminFalsa({
+      chave: CHAVE,
+      agora: () => 0,
+      dados: { atividades: [], diasDeSaude: [] },
+    });
+    const original = garmin.fetch;
+    const c = criarClienteGarmin({
+      chave: GarminKey.de(CHAVE),
+      fetch: (url, init) =>
+        comoTexto(url).includes("dailysummaries")
+          ? Promise.resolve(
+              Response.json({
+                data: [
+                  {
+                    calendarDate: "2026-11-02",
+                    heartRate: { restingValue: 0 },
+                    stress: { avgLevel: -1, maxLevel: -2 },
+                    bodyBattery: { minValue: -1, maxValue: 101, chargedValue: 50 },
+                  },
+                ],
+              }),
+            )
+          : original(url, init),
+      agora: () => 0,
+      dormir: () => Promise.resolve(),
+    });
+    const [dia] = await c.resumosDiarios(JANELA);
+    expect(dia).toMatchObject({
+      fcRepouso: null,
+      estresseMedio: null,
+      estresseMaximo: null,
+      bodyBatteryMin: null,
+      bodyBatteryMax: null,
+      bodyBatteryCarregada: 50,
+    });
+  });
+
+  it("data e hora com texto a mais no fim, ou listas gigantes, são rejeitadas", async () => {
+    const { cliente } = montar({
+      atividades: [
+        atividadeBruta(1, "2026-11-02", { startTimeLocal: "2026-11-02 07:00:00 e-mail@x.test" }),
+      ],
+    });
+    await expect(cliente.atividades({ ...JANELA, inicio: 0 })).rejects.toBeInstanceOf(
+      RespostaInesperadaError,
+    );
+    const frac = montar({
+      atividades: [atividadeBruta(2, "2026-11-02", { startTimeLocal: "2026-11-02T07:00:00.031" })],
+    });
+    await expect(frac.cliente.atividades({ ...JANELA, inicio: 0 })).resolves.toHaveLength(1);
   });
 });

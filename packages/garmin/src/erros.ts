@@ -28,6 +28,22 @@ export class LimiteExcedidoError extends ErroDaGarmin {
   }
 }
 
+/**
+ * A troca da chave por token deu certo (a Garmin aceitou a chave), mas as consultas seguintes
+ * recusaram o token recém-emitido. Isso NÃO quer dizer que a chave está errada: quer dizer que o
+ * jeito de enviar o token (esquema de autorização, não documentado pela Garmin) precisa de ajuste
+ * no conector. Por isso é um erro à parte, que não manda o dono gerar outra chave.
+ */
+export class TokenRecusadoError extends ErroDaGarmin {
+  readonly codigo = "token_recusado";
+  constructor() {
+    super(
+      "A Garmin aceitou a chave, mas recusou o token nas consultas: o conector precisa de ajuste.",
+    );
+    this.name = "TokenRecusadoError";
+  }
+}
+
 /** A Garmin respondeu 5xx. */
 export class GarminIndisponivelError extends ErroDaGarmin {
   readonly codigo = "garmin_indisponivel";

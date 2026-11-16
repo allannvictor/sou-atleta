@@ -2,7 +2,13 @@ import { data, redirect } from "react-router";
 
 import { AreaFechada } from "../componentes/area-fechada";
 import { NOME_DO_APP } from "../config";
-import { lerPainel, pedirAtualizacao, resultadoDaUrl } from "../server/garmin";
+import {
+  devePedirAoAbrir,
+  lerPainel,
+  pedirAoAbrir,
+  pedirAtualizacao,
+  resultadoDaUrl,
+} from "../server/garmin";
 import type { Route } from "./+types/app";
 
 export function meta() {
@@ -10,9 +16,16 @@ export function meta() {
 }
 
 export async function loader({ request, context }: Route.LoaderArgs) {
-  const painel = await lerPainel(context.garmin, new Date());
+  const agora = new Date();
+  const painel = await lerPainel(context.garmin, agora);
   const resultado = resultadoDaUrl(new URL(request.url).searchParams.get("atualizacao"));
-  return { painel, resultado };
+  // Abrir a área fechada pede uma sincronização, sem esperar: a página sai já, e o resultado
+  // aparece na próxima abertura (ou ao recarregar).
+  const buscaPedida = context.garmin.sync !== undefined && devePedirAoAbrir(painel, agora);
+  if (buscaPedida && context.garmin.sync !== undefined) {
+    context.garmin.aoFundo(pedirAoAbrir(context.garmin.sync));
+  }
+  return { painel, resultado, buscaPedida };
 }
 
 /**
@@ -30,5 +43,11 @@ export async function action({ request, context }: Route.ActionArgs) {
 }
 
 export default function Area({ loaderData }: Route.ComponentProps) {
-  return <AreaFechada painel={loaderData.painel} resultado={loaderData.resultado} />;
+  return (
+    <AreaFechada
+      painel={loaderData.painel}
+      resultado={loaderData.resultado}
+      buscaPedida={loaderData.buscaPedida}
+    />
+  );
 }

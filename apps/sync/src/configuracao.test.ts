@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { CRON, ORCAMENTO, SUBREQUESTS_MAXIMOS } from "./limites.js";
+import { ORCAMENTO, SUBREQUESTS_MAXIMOS } from "./limites.js";
 
 /** Lê um `wrangler.jsonc` (comentários de linha inteira e vírgulas finais). */
 function lerJsonc(caminho: URL): unknown {
@@ -20,10 +20,10 @@ const esquemaDoSync = z.object({
   name: z.string(),
   workers_dev: z.boolean(),
   preview_urls: z.boolean(),
-  triggers: z.object({ crons: z.array(z.string()) }),
   observability: z.object({
     enabled: z.boolean(),
     logs: z.object({ enabled: z.boolean(), invocation_logs: z.boolean() }),
+    traces: z.object({ enabled: z.boolean() }),
   }),
   d1_databases: z.array(
     z.object({ binding: z.string(), database_id: z.string(), migrations_dir: z.string() }),
@@ -40,13 +40,15 @@ describe("wrangler.jsonc da Worker sync", () => {
     expect(Object.keys(lerJsonc(SYNC) as object)).not.toContain("route");
   });
 
-  it("roda no cron combinado com `limites.ts`", () => {
-    expect(config.triggers.crons).toEqual([CRON]);
+  it("não tem rotina agendada (decisão do dono, 16/11/2026): nenhum Cron Trigger", () => {
+    const bruto = lerJsonc(SYNC) as Record<string, unknown>;
+    expect(Object.keys(bruto)).not.toContain("triggers");
   });
 
-  it("Workers Logs ligados aqui (decisão do dono), sem os registros automáticos de invocação", () => {
+  it("Workers Logs ligados aqui (decisão do dono), sem registros de invocação e sem tracing", () => {
     expect(config.observability.enabled).toBe(true);
     expect(config.observability.logs).toEqual({ enabled: true, invocation_logs: false });
+    expect(config.observability.traces).toEqual({ enabled: false });
   });
 
   it("usa as migrações do pacote db e o D1 por um marcador, nunca por um id inventado", () => {
@@ -119,8 +121,8 @@ describe("orçamento do plano gratuito", () => {
       expect(modo.garmin).toBeLessThan(SUBREQUESTS_MAXIMOS);
       expect(modo.janelas).toBeGreaterThanOrEqual(1);
     }
-    // O botão responde na hora e trabalha em segundo plano (até 30 s): pausa de 1,5 s entre
-    // requisições, no máximo 8 requisições e ainda sobra tempo.
-    expect(ORCAMENTO.manual.garmin * 1.5).toBeLessThan(30);
+    // O botão espera a resposta: pausa de 1,5 s entre requisições, no máximo 8, ou seja, cerca
+    // de 12 s; ao abrir a página o trabalho segue em segundo plano (até 30 s).
+    for (const modo of Object.values(ORCAMENTO)) expect(modo.garmin * 1.5).toBeLessThan(30);
   });
 });

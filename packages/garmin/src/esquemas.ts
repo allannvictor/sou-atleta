@@ -28,13 +28,33 @@ const numero = z
 
   .nullish()
   .transform((valor) => valor ?? null);
+/**
+ * Número que só vale dentro de uma faixa. A Garmin usa valores como -1 ou -2 para "sem dados" e 0
+ * para "sem sensor": guardar isso como medida real falsearia as métricas, então vira `null`.
+ */
+const numeroEm = (minimo: number, maximo: number) =>
+  z
+    .number()
+    .nullish()
+    .transform((valor) =>
+      valor !== null && valor !== undefined && valor >= minimo && valor <= maximo ? valor : null,
+    );
+const fcValida = numeroEm(1, 300);
+const nivel0a100 = numeroEm(0, 100);
+
+/** Texto curto vindo da Garmin (códigos e nomes de tipo). O limite protege o banco e a CPU. */
 const texto = z
   .string()
+  .max(100)
   .nullish()
   .transform((valor) => valor ?? null);
 
+/** Listas vindas da Garmin têm tamanho máximo, bem acima do que as janelas pedem. */
+const MAXIMO_DE_ITENS = 400;
+
 const dia = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const dataEHora = z.string().regex(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/);
+// Data e hora sem texto extra no fim (aceita frações de segundo).
+const dataEHora = z.string().regex(/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{1,6})?$/);
 
 const FONTE = "garmin" as const;
 
@@ -43,11 +63,11 @@ export const atividadeSchema = z
     activityId: z.number().int().positive(),
     startTimeLocal: dataEHora,
     startTimeGMT: dataEHora,
-    activityType: z.object({ typeKey: z.string().min(1) }),
+    activityType: z.object({ typeKey: z.string().min(1).max(100) }),
     duration: z.number().nonnegative(),
     distance: numero,
-    averageHR: numero,
-    maxHR: numero,
+    averageHR: fcValida,
+    maxHR: fcValida,
     hrTimeInZone_1: numero,
     hrTimeInZone_2: numero,
     hrTimeInZone_3: numero,
@@ -77,7 +97,7 @@ export const atividadeSchema = z
     efeitoAerobico: a.aerobicTrainingEffect,
     efeitoAnaerobico: a.anaerobicTrainingEffect,
   }));
-export const listaDeAtividadesSchema = z.array(atividadeSchema);
+export const listaDeAtividadesSchema = z.array(atividadeSchema).max(MAXIMO_DE_ITENS);
 
 const diaDeHrvSchema = z
   .object({
@@ -96,7 +116,7 @@ const diaDeHrvSchema = z
     estado: h.status,
   }));
 export const hrvSchema = z
-  .object({ hrvSummaries: z.array(diaDeHrvSchema) })
+  .object({ hrvSummaries: z.array(diaDeHrvSchema).max(MAXIMO_DE_ITENS) })
   .transform((r) => r.hrvSummaries);
 
 const diaDeSonoSchema = z
@@ -117,20 +137,20 @@ const diaDeSonoSchema = z
     remS: s.remSleepSeconds,
     acordadoS: s.awakeSleepSeconds,
   }));
-export const sonoSchema = z.array(diaDeSonoSchema);
+export const sonoSchema = z.array(diaDeSonoSchema).max(MAXIMO_DE_ITENS);
 
 const diaDeResumoSchema = z
   .object({
     calendarDate: dia,
-    heartRate: z.object({ restingValue: numero }).nullish(),
-    stress: z.object({ avgLevel: numero, maxLevel: numero }).nullish(),
+    heartRate: z.object({ restingValue: fcValida }).nullish(),
+    stress: z.object({ avgLevel: nivel0a100, maxLevel: nivel0a100 }).nullish(),
     bodyBattery: z
       .object({
-        minValue: numero,
-        maxValue: numero,
-        chargedValue: numero,
-        drainedValue: numero,
-        endOfDayValue: numero,
+        minValue: nivel0a100,
+        maxValue: nivel0a100,
+        chargedValue: nivel0a100,
+        drainedValue: nivel0a100,
+        endOfDayValue: nivel0a100,
       })
       .nullish(),
   })
@@ -147,16 +167,16 @@ const diaDeResumoSchema = z
     bodyBatteryFimDoDia: r.bodyBattery?.endOfDayValue ?? null,
   }));
 export const resumosDiariosSchema = z
-  .object({ data: z.array(diaDeResumoSchema) })
+  .object({ data: z.array(diaDeResumoSchema).max(MAXIMO_DE_ITENS) })
   .transform((r) => r.data);
 
 const zonaSchema = z
   .object({
     sport: texto,
     trainingMethod: texto,
-    maxHeartRateUsed: numero,
-    restingHeartRateUsed: numero,
-    lactateThresholdHeartRateUsed: numero,
+    maxHeartRateUsed: fcValida,
+    restingHeartRateUsed: fcValida,
+    lactateThresholdHeartRateUsed: fcValida,
     zone1Floor: z.number(),
     zone2Floor: z.number(),
     zone3Floor: z.number(),
@@ -176,10 +196,11 @@ const zonaSchema = z
     zona4Piso: z1.zone4Floor,
     zona5Piso: z1.zone5Floor,
   }));
-export const zonasSchema = z.array(zonaSchema);
+export const zonasSchema = z.array(zonaSchema).max(50);
 
 const listaDeDias = z
-  .array(z.string())
+  .array(z.string().max(20))
+  .max(14)
   .nullish()
   .transform((dias) => (dias === null || dias === undefined ? null : JSON.stringify(dias)));
 
@@ -213,7 +234,7 @@ const sensorSchema = z.object({
  */
 export const detalheDaAtividadeSchema = z
   .object({
-    metadataDTO: z.object({ sensors: z.array(sensorSchema).nullish() }).nullish(),
+    metadataDTO: z.object({ sensors: z.array(sensorSchema).max(100).nullish() }).nullish(),
   })
   .transform((d): OrigemDeFc => {
     const sensores = d.metadataDTO?.sensors ?? [];

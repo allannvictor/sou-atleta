@@ -51,4 +51,7 @@ export const ESPERA_MAXIMA_APOS_429_S = 21_600;
 export const VALIDADE_DO_TOKEN_MS = 24 * 60 * 60 * 1000;
 export const MARGEM_DO_TOKEN_MS = 5 * 60 * 1000;
 
+/** Resposta maior que isto é recusada antes de ser lida (protege memória e CPU do plano gratuito). */
+export const TAMANHO_MAXIMO_DA_RESPOSTA = 1_000_000;
+
 export const URL_BASE_PADRAO = "https://personal.connectapi.garmin.com";

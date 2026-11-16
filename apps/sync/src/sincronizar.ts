@@ -1,5 +1,6 @@
 import {
   avancarProgresso,
+  DIAS_DA_IMPORTACAO_INICIAL,
   executarLote,
   FLUXOS,
   gravarAtividade,
@@ -15,6 +16,7 @@ import {
   listarAtividadesSemOrigemDeFc,
   registrarEstadoDaChave,
   registrarFimDaExecucao,
+  registrarInterrupcao,
   tentarPegarTrava,
   type Banco,
   type CodigoDeErro,
@@ -22,6 +24,7 @@ import {
   type FotoDaSincronizacao,
   type Fluxo,
   type ProgressoDoFluxo,
+  type ResultadoDaAtualizacao,
   type StatusDaChave,
 } from "@sou-atleta/db";
 import {
@@ -35,20 +38,18 @@ import {
   RedeGarminError,
   RespostaInesperadaError,
   somarDias,
+  TokenRecusadoError,
   type ClienteGarmin,
 } from "@sou-atleta/garmin";
 
 import {
-  DATA_MINIMA,
-  DIAS_DE_HISTORICO_SEM_ATIVIDADES,
-  DIAS_DE_SAUDE_ANTES_DA_PRIMEIRA_ATIVIDADE,
-  ESPERA_APOS_CHAVE_INVALIDA_SEGUNDOS,
+  ESPERA_APOS_RECUSA_SEGUNDOS,
   ESPERA_BASE_APOS_429_SEGUNDOS,
   ESPERA_MAXIMA_APOS_429_SEGUNDOS,
+  INTERVALO_MINIMO_AO_ABRIR_SEGUNDOS,
   INTERVALO_MINIMO_MANUAL_SEGUNDOS,
   ORCAMENTO,
   REVALIDAR_PERFIL_HORAS,
-  REVERIFICACAO_MINUTOS,
   SOBREPOSICAO_DIAS,
   SUBREQUESTS_MAXIMOS,
   TRAVA_SEGUNDOS,
@@ -57,18 +58,21 @@ import {
 import type { OndeFalhou, Registrador } from "./log.js";
 
 /**
- * A sincronização com a Garmin (issue #5). Uma execução:
+ * A sincronização com a Garmin (issue #5). Não há rotina agendada: ela roda quando o dono abre
+ * `/app` e quando aperta "Atualizar agora". Uma execução:
  *
- * 1. lê o estado, decide se roda (pausa por 429, intervalo do botão, outra execução em curso)
- *    e pega a trava;
+ * 1. lê o estado, decide se roda (pausa por 429, intervalo mínimo, outra execução em curso) e
+ *    pega a trava;
  * 2. renova perfil e zonas de FC, no máximo uma vez por dia;
- * 3. importa janelas de datas de cada fluxo, uma por vez, em rodízio, até acabar o orçamento
- *    (`limites.ts`). Cada janela e o avanço do progresso entram no banco no MESMO lote: se algo
- *    interromper, a próxima execução retoma dali, sem duplicar nem pular dia;
- * 4. confere, com a sobra, se a FC das atividades veio de pulso ou de cinta;
- * 5. grava como terminou (códigos curtos, nunca texto de erro) e solta a trava.
+ * 3. na primeira execução, define a importação inicial: os últimos 90 dias;
+ * 4. importa janelas de datas, uma por vez. Cada janela e o avanço do progresso entram no banco
+ *    no MESMO lote: se algo interromper, a próxima execução retoma dali, sem duplicar nem pular
+ *    dia. Enquanto os 90 dias não terminam, cada execução traz o próximo pedaço; depois, cada
+ *    execução busca desde a última sincronização, relendo alguns dias para pegar o que foi editado;
+ * 5. confere, com a sobra, se a FC das atividades veio de pulso ou de cinta;
+ * 6. grava como terminou (códigos curtos, nunca texto de erro) e solta a trava.
  *
- * O que não couber fica para a próxima execução do cron.
+ * O que não couber fica para a próxima abertura ou clique.
  */
 
 export type ChaveDoCofre =
@@ -85,33 +89,53 @@ export interface Dependencias {
   readonly registrar: Registrador;
 }
 
-export type Resultado =
-  "concluida" | "parada_por_erro" | "pausada" | "sem_chave" | "ja_em_andamento" | "muito_cedo";
+export type MotivoDeIgnorar = "pausada" | "sem_chave" | "ja_em_andamento" | "muito_cedo";
+export type Resultado = "concluida" | "parada_por_erro" | MotivoDeIgnorar;
 
 export interface ResumoDaExecucao {
   readonly resultado: Resultado;
   readonly janelas: number;
   readonly requisicoesGarmin: number;
   readonly subrequests: number;
+  /** A execução de fato trouxe e gravou dados da Garmin. */
+  readonly buscouDados: boolean;
+  readonly erroCodigo: CodigoDeErro | null;
 }
 
 export type Preparacao =
-  | {
-      readonly tipo: "ignorada";
-      readonly motivo: Exclude<Resultado, "concluida" | "parada_por_erro">;
-    }
+  | { readonly tipo: "ignorada"; readonly motivo: MotivoDeIgnorar }
   | { readonly tipo: "pronta"; readonly executar: () => Promise<ResumoDaExecucao> };
+
+/** Como o botão e a abertura da página contam o desfecho para o atleta. */
+export function resultadoParaOSite(resumo: ResumoDaExecucao): ResultadoDaAtualizacao {
+  switch (resumo.resultado) {
+    case "pausada":
+    case "sem_chave":
+    case "ja_em_andamento":
+    case "muito_cedo":
+      return resumo.resultado;
+    case "concluida":
+      return resumo.erroCodigo === null ? "atualizada" : "atualizada_em_parte";
+    case "parada_por_erro":
+      switch (resumo.erroCodigo) {
+        case "chave_invalida":
+          return "chave_recusada";
+        case "token_recusado":
+          return "token_recusado";
+        case "limite_garmin":
+          return "pausada";
+        case "garmin_indisponivel":
+        case "rede":
+          return "garmin_fora";
+        default:
+          return resumo.buscouDados ? "atualizada_em_parte" : "erro";
+      }
+  }
+}
 
 // ---------------------------------------------------------------------------------------------
 // Regras de janela (puras, testadas à parte)
 // ---------------------------------------------------------------------------------------------
-
-/** O fluxo precisa de uma janela agora? */
-export function deveProcessar(p: ProgressoDoFluxo, hoje: string, agoraMs: number): boolean {
-  if (!p.historicoCompleto || p.importadoAte === null || p.importadoAte < hoje) return true;
-  if (p.verificadoEm === null) return true;
-  return agoraMs - Date.parse(p.verificadoEm) >= REVERIFICACAO_MINUTOS[p.fluxo] * 60_000;
-}
 
 export interface Janela {
   readonly de: string;
@@ -119,7 +143,7 @@ export interface Janela {
 }
 
 /**
- * Próxima janela a buscar. Durante a importação do histórico, segue do dia seguinte ao último
+ * Próxima janela a buscar. Durante a importação inicial, segue do dia seguinte ao último dia
  * importado. Depois dela, volta `SOBREPOSICAO_DIAS` dias para pegar atividades editadas. Nunca
  * passa de hoje, nem excede o tamanho de janela do fluxo.
  */
@@ -129,6 +153,30 @@ export function proximaJanela(p: ProgressoDoFluxo, hoje: string): Janela {
   const de = comeco > hoje ? hoje : comeco;
   const ate = somarDias(de, JANELA_DIAS[p.fluxo] - 1);
   return { de, ate: ate > hoje ? hoje : ate };
+}
+
+/**
+ * Qual fluxo recebe a próxima janela. Todos os fluxos estão sempre "devidos" (a cota é protegida
+ * pelo intervalo entre execuções, não por fluxo); a escolha é um rodízio justo: o que foi
+ * verificado há mais tempo vai primeiro (nunca verificado, antes de todos). No botão, as
+ * atividades vão primeiro, porque é o que o atleta quer ver depois de um treino. Cada fluxo
+ * recebe no máximo uma janela por execução.
+ */
+export function proximoFluxo(
+  progresso: ReadonlyMap<Fluxo, ProgressoDoFluxo>,
+  jaFeitos: ReadonlySet<Fluxo>,
+  modo: Modo,
+): Fluxo | null {
+  const candidatos = FLUXOS.filter((f) => progresso.has(f) && !jaFeitos.has(f));
+  const verificadoEm = (f: Fluxo) => progresso.get(f)?.verificadoEm ?? "";
+  const ordenados = [...candidatos].sort((a, b) => {
+    if (modo === "manual" && a !== b) {
+      if (a === "atividades") return -1;
+      if (b === "atividades") return 1;
+    }
+    return verificadoEm(a).localeCompare(verificadoEm(b)) || FLUXOS.indexOf(a) - FLUXOS.indexOf(b);
+  });
+  return ordenados[0] ?? null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -161,14 +209,29 @@ class OrcamentoEsgotado extends Error {}
 const em = (data: Date, segundos: number) =>
   new Date(data.getTime() + segundos * 1000).toISOString();
 
-function ondeFalhou(fluxo: Fluxo | "perfil" | "zonas" | "detalhe"): OndeFalhou {
-  return fluxo === "detalhe" ? "detalhe_da_atividade" : fluxo;
+type Onde = Fluxo | "perfil" | "zonas" | "detalhe";
+
+/** Onde o problema apareceu, para o log: a troca do token tem lugar próprio. */
+function ondeFalhou(erro: unknown, onde: Onde): OndeFalhou {
+  if (erro instanceof RespostaInesperadaError && erro.endpoint.includes("personal-api-key/token")) {
+    return "token";
+  }
+  return onde === "detalhe" ? "detalhe_da_atividade" : onde;
 }
+
+/** O problema foi na troca da chave por token: afeta toda a execução, não um fluxo só. */
+function ehErroDeToken(erro: unknown): erro is RespostaInesperadaError | PedidoRecusadoError {
+  return (
+    (erro instanceof RespostaInesperadaError || erro instanceof PedidoRecusadoError) &&
+    erro.endpoint.includes("personal-api-key/token")
+  );
+}
+
+const SEM_RESUMO = { janelas: 0, requisicoesGarmin: 0, buscouDados: false, erroCodigo: null };
 
 /**
  * Primeira parte: decide se a execução roda e pega a trava. Fica separada de `executar` para o
- * botão "Atualizar agora" poder responder na hora ("iniciada" ou o motivo de não rodar) e deixar
- * o trabalho em segundo plano.
+ * site poder responder na hora quando ninguém precisa esperar (abrir a página).
  */
 export async function prepararExecucao(deps: Dependencias, modo: Modo): Promise<Preparacao> {
   const { banco, chave, registrar } = deps;
@@ -182,9 +245,10 @@ export async function prepararExecucao(deps: Dependencias, modo: Modo): Promise<
   const foto = await lerFotoGarantindoEstado(banco, iso);
   orcamento.d1 += 1;
   const estado = foto.estado;
-  if (estado === null) return { tipo: "ignorada", motivo: "ja_em_andamento" };
+  // Depois do "inserir se não existir" no mesmo lote o estado sempre existe.
+  if (estado === null) throw new Error("estado da sincronização ausente");
 
-  const ignorar = (motivo: Exclude<Resultado, "concluida" | "parada_por_erro">) => {
+  const ignorar = (motivo: MotivoDeIgnorar) => {
     registrar({ evento: "execucao_ignorada", modo, motivo });
     return { tipo: "ignorada", motivo } as const;
   };
@@ -202,27 +266,34 @@ export async function prepararExecucao(deps: Dependencias, modo: Modo): Promise<
     return ignorar("sem_chave");
   }
 
-  // Pausa por 429 vale para o cron e para o botão. A pausa por chave recusada só segura o cron:
-  // quem cadastrou outra chave aperta o botão para testar.
+  // Pausa por 429 vale sempre, inclusive para o botão. A pausa por chave ou token recusado só
+  // segura a abertura da página: quem cadastrou outra chave aperta o botão para testar.
   if (
     estado.pausaAte !== null &&
     estado.pausaAte > iso &&
-    (modo === "agendada" || estado.erroCodigo === "limite_garmin")
+    (modo === "ao_abrir" || estado.erroCodigo === "limite_garmin")
   ) {
     return ignorar("pausada");
   }
+  const intervalo =
+    modo === "ao_abrir" ? INTERVALO_MINIMO_AO_ABRIR_SEGUNDOS : INTERVALO_MINIMO_MANUAL_SEGUNDOS;
   if (
-    modo === "manual" &&
     estado.ultimaExecucaoEm !== null &&
-    agora.getTime() - Date.parse(estado.ultimaExecucaoEm) < INTERVALO_MINIMO_MANUAL_SEGUNDOS * 1000
+    agora.getTime() - Date.parse(estado.ultimaExecucaoEm) < intervalo * 1000
   ) {
     return ignorar("muito_cedo");
   }
 
   const trava = await tentarPegarTrava(banco, iso, em(agora, TRAVA_SEGUNDOS));
-  orcamento.d1 += 1;
+  orcamento.d1 += 2; // `tentarPegarTrava` faz duas idas ao banco
   if (!trava.obtida) return ignorar("ja_em_andamento");
-  if (trava.anteriorInterrompida) registrar({ evento: "execucao_anterior_interrompida" });
+  if (trava.anteriorInterrompida) {
+    // A execução anterior foi cortada (por exemplo, pelo limite de CPU): fica visível no painel
+    // até uma execução terminar bem.
+    registrar({ evento: "execucao_anterior_interrompida" });
+    await registrarInterrupcao(banco, iso);
+    orcamento.d1 += 1;
+  }
 
   return {
     tipo: "pronta",
@@ -230,11 +301,11 @@ export async function prepararExecucao(deps: Dependencias, modo: Modo): Promise<
   };
 }
 
-/** Prepara e executa, para o cron. */
+/** Prepara e executa, quando ninguém precisa esperar entre as duas partes. */
 export async function sincronizar(deps: Dependencias, modo: Modo): Promise<ResumoDaExecucao> {
   const preparacao = await prepararExecucao(deps, modo);
   if (preparacao.tipo === "ignorada") {
-    return { resultado: preparacao.motivo, janelas: 0, requisicoesGarmin: 0, subrequests: 1 };
+    return { resultado: preparacao.motivo, subrequests: 1, ...SEM_RESUMO };
   }
   return preparacao.executar();
 }
@@ -244,12 +315,16 @@ interface Situacao {
   statusAnterior: StatusDaChave;
   /** A Garmin recusou a chave nesta execução. */
   chaveRecusada: boolean;
+  /** A Garmin aceitou a chave (houve resposta boa, ou a troca por token funcionou). */
+  chaveAceita: boolean;
   erroCodigo: CodigoDeErro | null;
+  /** Problema que afetou só um fluxo; a execução seguiu com os outros. */
+  erroDeFluxo: CodigoDeErro | null;
   pausaAte: string | null;
   falhasDeLimite: number;
-  /** Houve ao menos uma resposta boa da Garmin: a chave funciona. */
-  garminRespondeu: boolean;
+  buscouDados: boolean;
   parouPorErro: boolean;
+  janelas: number;
 }
 
 async function executar(
@@ -262,11 +337,10 @@ async function executar(
   const { banco, registrar } = deps;
   const agora = deps.agora();
   const iso = agora.toISOString();
-  const limites = ORCAMENTO[modo];
-  const estado = foto.estado;
   registrar({ evento: "execucao_iniciada", modo });
 
-  const situacao: Situacao = {
+  const estado = foto.estado;
+  const sit: Situacao = {
     statusAnterior:
       estado === null ||
       estado.statusDaChave === "ausente" ||
@@ -274,32 +348,92 @@ async function executar(
         ? "nao_verificada"
         : estado.statusDaChave,
     chaveRecusada: false,
+    chaveAceita: false,
     erroCodigo: null,
+    erroDeFluxo: null,
     pausaAte: null,
     falhasDeLimite: estado?.falhasDeLimiteSeguidas ?? 0,
-    garminRespondeu: false,
+    buscouDados: false,
     parouPorErro: false,
+    janelas: 0,
   };
-  let janelas = 0;
-  let erroDeFluxo: CodigoDeErro | null = null;
 
   /** Erros que só afetam um fluxo: registra e segue com os outros. */
-  const fluxoFalhou = (erro: unknown, onde: Fluxo | "perfil" | "zonas" | "detalhe"): boolean => {
+  const fluxoFalhou = (erro: unknown, onde: Onde): boolean => {
+    if (ehErroDeToken(erro)) return false; // para a execução inteira (ver `tratarErroFatal`)
     if (erro instanceof RespostaInesperadaError || erro instanceof PedidoRecusadoError) {
       registrar({
         evento: "formato_inesperado",
-        onde: ondeFalhou(onde),
+        onde: ondeFalhou(erro, onde),
         campos: erro instanceof RespostaInesperadaError ? [...erro.campos] : [],
       });
-      erroDeFluxo ??= "formato_inesperado";
+      sit.erroDeFluxo ??= "formato_inesperado";
       return true;
     }
     if (erro instanceof AcessoNegadoError) {
-      registrar({ evento: "acesso_negado", onde: ondeFalhou(onde) });
-      erroDeFluxo ??= "acesso_negado";
+      registrar({ evento: "acesso_negado", onde: ondeFalhou(erro, onde) });
+      sit.erroDeFluxo ??= "acesso_negado";
       return true;
     }
     return false;
+  };
+
+  /** Importa uma janela de um fluxo e avança o progresso, tudo no mesmo lote. */
+  const importarJanela = async (
+    fluxo: Fluxo,
+    p: ProgressoDoFluxo,
+    hoje: string,
+  ): Promise<ProgressoDoFluxo> => {
+    const janela = proximaJanela(p, hoje);
+    const comandos: ComandoDeLote[] = [];
+    let itens = 0;
+
+    if (fluxo === "atividades") {
+      let inicio = 0;
+      for (;;) {
+        const pagina = await cliente.atividades({ ...janela, inicio });
+        sit.chaveAceita = true;
+        for (const a of pagina) comandos.push(gravarAtividade(banco, a, iso));
+        itens += pagina.length;
+        inicio += pagina.length;
+        if (pagina.length < ATIVIDADES_POR_PAGINA) break;
+        // Mais uma página: se não couber, abandona a janela inteira (nada foi gravado). O
+        // orçamento comporta bem mais de 300 atividades numa janela, mais do que qualquer atleta.
+        if (!orcamento.cabe(1, 1)) throw new OrcamentoEsgotado();
+      }
+    } else if (fluxo === "resumo_diario") {
+      const dias = await cliente.resumosDiarios(janela);
+      for (const d of dias) comandos.push(gravarDiaResumo(banco, d, iso));
+      itens = dias.length;
+    } else if (fluxo === "sono") {
+      const dias = await cliente.sono(janela);
+      for (const d of dias) comandos.push(gravarDiaSono(banco, d, iso));
+      itens = dias.length;
+    } else {
+      const dias = await cliente.hrv(janela);
+      for (const d of dias) comandos.push(gravarDiaHrv(banco, d, iso));
+      itens = dias.length;
+    }
+    sit.chaveAceita = true;
+
+    const importacaoInicialCompleta = p.historicoCompleto || janela.ate >= hoje;
+    comandos.push(
+      avancarProgresso(
+        banco,
+        { fluxo, importadoAte: janela.ate, historicoCompleto: importacaoInicialCompleta },
+        iso,
+      ),
+    );
+    await executarLote(banco, comandos);
+    orcamento.d1 += 1;
+    sit.buscouDados = true;
+    registrar({ evento: "janela_importada", fluxo, itens, importacaoInicialCompleta });
+    return {
+      ...p,
+      importadoAte: janela.ate,
+      historicoCompleto: importacaoInicialCompleta,
+      verificadoEm: iso,
+    };
   };
 
   try {
@@ -314,12 +448,13 @@ async function executar(
       try {
         const perfil = await cliente.perfil();
         const zonas = await cliente.zonasDeFc();
-        situacao.garminRespondeu = true;
+        sit.chaveAceita = true;
         await executarLote(banco, [
           gravarPerfil(banco, perfil, iso),
           ...zonas.map((zona) => gravarZonaFc(banco, zona, iso)),
         ]);
         orcamento.d1 += 1;
+        sit.buscouDados = true;
         fuso = perfil.fusoHorario ?? fuso;
         registrar({ evento: "perfil_atualizado" });
       } catch (erro) {
@@ -328,209 +463,82 @@ async function executar(
     }
     const hoje = hojeNoFuso(agora.getTime(), fuso);
 
-    // 2. Onde começa o histórico, na primeira execução.
-    if (FLUXOS.some((f) => !progresso.has(f))) {
-      if (!orcamento.cabe(2, 1)) throw new OrcamentoEsgotado();
-      const existente = [...progresso.values()][0];
-      let inicioAtividades: string;
-      let inicioSaude: string;
-      if (existente === undefined) {
-        const primeira = await cliente.primeiraAtividade();
-        situacao.garminRespondeu = true;
-        inicioAtividades =
-          primeira?.dataLocal ?? somarDias(hoje, -DIAS_DE_HISTORICO_SEM_ATIVIDADES);
-        inicioSaude =
-          primeira === null
-            ? inicioAtividades
-            : somarDias(primeira.dataLocal, -DIAS_DE_SAUDE_ANTES_DA_PRIMEIRA_ATIVIDADE);
-      } else {
-        inicioAtividades = progresso.get("atividades")?.inicio ?? existente.inicio;
-        inicioSaude = progresso.get("sono")?.inicio ?? existente.inicio;
-      }
-      const naoAntesDe = (data: string) => (data < DATA_MINIMA ? DATA_MINIMA : data);
-      inicioAtividades = naoAntesDe(inicioAtividades);
-      inicioSaude = naoAntesDe(inicioSaude);
-      const faltando = FLUXOS.filter((f) => !progresso.has(f));
-      await executarLote(banco, [
-        ...iniciarProgresso(
-          banco,
-          faltando.filter((f) => f === "atividades"),
-          inicioAtividades,
-          iso,
-        ),
-        ...iniciarProgresso(
-          banco,
-          faltando.filter((f) => f !== "atividades"),
-          inicioSaude,
-          iso,
-        ),
-      ]);
+    // 2. Primeira execução: a importação inicial traz só os últimos 90 dias.
+    const faltando = FLUXOS.filter((f) => !progresso.has(f));
+    if (faltando.length > 0) {
+      const inicio = somarDias(hoje, -DIAS_DA_IMPORTACAO_INICIAL);
+      await executarLote(banco, iniciarProgresso(banco, faltando, inicio, iso));
       orcamento.d1 += 1;
       for (const fluxo of faltando) {
         progresso.set(fluxo, {
           fluxo,
-          inicio: fluxo === "atividades" ? inicioAtividades : inicioSaude,
+          inicio,
           importadoAte: null,
           historicoCompleto: false,
           verificadoEm: null,
         });
       }
-      registrar({ evento: "historico_iniciado" });
+      registrar({ evento: "importacao_inicial_iniciada" });
     }
 
-    // 3. Janelas, em rodízio entre os fluxos.
+    // 3. Janelas: rodízio entre os fluxos, no máximo `janelas` por execução.
+    const feitos = new Set<Fluxo>();
     const comProblema = new Set<Fluxo>();
-    let acabouOrcamento = false;
-    rodadas: while (janelas < limites.janelas) {
-      let fezAlgo = false;
-      for (const fluxo of FLUXOS) {
-        if (janelas >= limites.janelas) break;
-        const p = progresso.get(fluxo);
-        if (p === undefined || comProblema.has(fluxo)) continue;
-        if (!deveProcessar(p, hoje, agora.getTime())) continue;
-        if (!orcamento.cabe(2, 1)) {
-          acabouOrcamento = true;
-          break rodadas;
-        }
-        try {
-          const novo = await importarJanela(fluxo, p, hoje);
-          progresso.set(fluxo, novo);
-          janelas += 1;
-          fezAlgo = true;
-        } catch (erro) {
-          if (erro instanceof OrcamentoEsgotado) {
-            acabouOrcamento = true;
-            break rodadas;
-          }
-          if (!fluxoFalhou(erro, fluxo)) throw erro;
-          comProblema.add(fluxo);
-        }
+    while (sit.janelas < ORCAMENTO[modo].janelas) {
+      const fluxo = proximoFluxo(progresso, new Set([...feitos, ...comProblema]), modo);
+      const p = fluxo === null ? undefined : progresso.get(fluxo);
+      if (fluxo === null || p === undefined) break;
+      if (!orcamento.cabe(2, 1)) {
+        registrar({ evento: "orcamento_esgotado" });
+        break;
       }
-      if (!fezAlgo) break;
+      try {
+        progresso.set(fluxo, await importarJanela(fluxo, p, hoje));
+        feitos.add(fluxo);
+        sit.janelas += 1;
+      } catch (erro) {
+        if (erro instanceof OrcamentoEsgotado) {
+          registrar({ evento: "orcamento_esgotado" });
+          break;
+        }
+        if (!fluxoFalhou(erro, fluxo)) throw erro;
+        comProblema.add(fluxo);
+      }
     }
-    if (acabouOrcamento) registrar({ evento: "orcamento_esgotado" });
 
     // 4. Com a sobra, confere se a FC veio do pulso ou de uma cinta.
-    if (limites.conferenciasDeFc > 0 && orcamento.cabe(2, 2)) {
+    const conferencias = ORCAMENTO[modo].conferenciasDeFc;
+    if (conferencias > 0 && orcamento.cabe(2, 2)) {
       try {
-        const pendentes = await listarAtividadesSemOrigemDeFc(banco, limites.conferenciasDeFc);
+        const pendentes = await listarAtividadesSemOrigemDeFc(banco, conferencias);
         orcamento.d1 += 1;
         const comandos: ComandoDeLote[] = [];
         for (const id of pendentes) {
           if (!orcamento.cabe(2, 1)) break;
           const origem = await cliente.origemDeFc(id);
-          situacao.garminRespondeu = true;
+          sit.chaveAceita = true;
           comandos.push(gravarOrigemDeFc(banco, id, origem, iso));
         }
         if (comandos.length > 0) {
           await executarLote(banco, comandos);
           orcamento.d1 += 1;
+          sit.buscouDados = true;
           registrar({ evento: "origem_de_fc_conferida", atividades: comandos.length });
         }
       } catch (erro) {
         if (!fluxoFalhou(erro, "detalhe")) throw erro;
       }
     }
-
-    // ---- Importa uma janela de um fluxo e avança o progresso, tudo no mesmo lote.
-    async function importarJanela(
-      fluxo: Fluxo,
-      p: ProgressoDoFluxo,
-      hojeLocal: string,
-    ): Promise<ProgressoDoFluxo> {
-      const janela = proximaJanela(p, hojeLocal);
-      const comandos: ComandoDeLote[] = [];
-      let itens = 0;
-
-      if (fluxo === "atividades") {
-        let inicio = 0;
-        for (;;) {
-          const pagina = await cliente.atividades({ ...janela, inicio });
-          situacao.garminRespondeu = true;
-          for (const a of pagina) comandos.push(gravarAtividade(banco, a, iso));
-          itens += pagina.length;
-          inicio += pagina.length;
-          if (pagina.length < ATIVIDADES_POR_PAGINA) break;
-          // Mais uma página: se não couber, abandona a janela inteira (nada foi gravado).
-          if (!orcamento.cabe(1, 1)) throw new OrcamentoEsgotado();
-        }
-      } else if (fluxo === "resumo_diario") {
-        const dias = await cliente.resumosDiarios(janela);
-        for (const d of dias) comandos.push(gravarDiaResumo(banco, d, iso));
-        itens = dias.length;
-      } else if (fluxo === "sono") {
-        const dias = await cliente.sono(janela);
-        for (const d of dias) comandos.push(gravarDiaSono(banco, d, iso));
-        itens = dias.length;
-      } else {
-        const dias = await cliente.hrv(janela);
-        for (const d of dias) comandos.push(gravarDiaHrv(banco, d, iso));
-        itens = dias.length;
-      }
-      situacao.garminRespondeu = true;
-
-      const historicoCompleto = p.historicoCompleto || janela.ate >= hojeLocal;
-      comandos.push(
-        avancarProgresso(banco, { fluxo, importadoAte: janela.ate, historicoCompleto }, iso),
-      );
-      await executarLote(banco, comandos);
-      orcamento.d1 += 1;
-      registrar({ evento: "janela_importada", fluxo, itens, historicoCompleto });
-      return { ...p, importadoAte: janela.ate, historicoCompleto, verificadoEm: iso };
-    }
   } catch (erro) {
-    tratarErroFatal(erro);
+    tratarErroFatal(erro, sit, agora, registrar, fluxoFalhou);
   }
 
-  function tratarErroFatal(erro: unknown): void {
-    if (erro instanceof OrcamentoEsgotado) {
-      registrar({ evento: "orcamento_esgotado" });
-      return;
-    }
-    situacao.parouPorErro = true;
-    // Resposta fora do formato ou acesso negado antes de existir fluxo (por exemplo, ao descobrir
-    // o início do histórico): para a execução, com o código de sempre.
-    if (fluxoFalhou(erro, "atividades")) return;
-    if (erro instanceof ChaveInvalidaError) {
-      registrar({ evento: "chave_invalida" });
-      situacao.chaveRecusada = true;
-      situacao.erroCodigo = "chave_invalida";
-      situacao.pausaAte = em(agora, ESPERA_APOS_CHAVE_INVALIDA_SEGUNDOS);
-    } else if (erro instanceof LimiteExcedidoError) {
-      // Dobra a espera a cada 429 seguido (15 min, 30 min, 1 h, ... até 6 h), nunca menos que o
-      // pedido pela Garmin: esperar de verdade, sem insistir.
-      situacao.falhasDeLimite += 1;
-      const crescente = Math.min(
-        ESPERA_BASE_APOS_429_SEGUNDOS * 2 ** (situacao.falhasDeLimite - 1),
-        ESPERA_MAXIMA_APOS_429_SEGUNDOS,
-      );
-      const espera = Math.min(
-        Math.max(erro.esperarSegundos, crescente),
-        ESPERA_MAXIMA_APOS_429_SEGUNDOS,
-      );
-      registrar({ evento: "limite_garmin", esperarSegundos: espera });
-      situacao.erroCodigo = "limite_garmin";
-      situacao.pausaAte = em(agora, espera);
-    } else if (erro instanceof GarminIndisponivelError) {
-      registrar({ evento: "garmin_indisponivel", status: erro.status });
-      situacao.erroCodigo = "garmin_indisponivel";
-    } else if (erro instanceof RedeGarminError) {
-      registrar({ evento: "erro_de_rede" });
-      situacao.erroCodigo = "rede";
-    } else {
-      // Erro nosso (banco, bug): nada do erro vai para o log, que poderia carregar dados.
-      registrar({ evento: "erro_interno" });
-      situacao.erroCodigo = "erro_interno";
-    }
-  }
-
-  const codigo = situacao.erroCodigo ?? erroDeFluxo;
-  const sucesso = codigo === null;
-  const statusFinal: StatusDaChave = situacao.chaveRecusada
+  const codigo = sit.erroCodigo ?? sit.erroDeFluxo;
+  const statusFinal: StatusDaChave = sit.chaveRecusada
     ? "invalida"
-    : situacao.garminRespondeu
+    : sit.chaveAceita
       ? "ok"
-      : situacao.statusAnterior;
+      : sit.statusAnterior;
 
   await registrarFimDaExecucao(
     banco,
@@ -538,28 +546,97 @@ async function executar(
       statusDaChave: statusFinal,
       chaveVenceEm: deps.venceEm,
       erroCodigo: codigo,
-      sucesso,
+      buscouDados: sit.buscouDados,
       executou: true,
-      pausaAte: situacao.pausaAte,
-      falhasDeLimiteSeguidas: situacao.erroCodigo === "limite_garmin" ? situacao.falhasDeLimite : 0,
+      pausaAte: sit.pausaAte,
+      falhasDeLimiteSeguidas: sit.erroCodigo === "limite_garmin" ? sit.falhasDeLimite : 0,
     },
     iso,
   );
   orcamento.d1 += 1;
 
   const resumo: ResumoDaExecucao = {
-    resultado: situacao.parouPorErro ? "parada_por_erro" : "concluida",
-    janelas,
+    resultado: sit.parouPorErro ? "parada_por_erro" : "concluida",
+    janelas: sit.janelas,
     requisicoesGarmin: orcamento.garmin,
     subrequests: orcamento.total,
+    buscouDados: sit.buscouDados,
+    erroCodigo: codigo,
   };
   registrar({
     evento: "execucao_concluida",
     modo,
     resultado: resumo.resultado,
-    janelas,
+    janelas: resumo.janelas,
     requisicoesGarmin: resumo.requisicoesGarmin,
     subrequests: resumo.subrequests,
+    buscouDados: resumo.buscouDados,
   });
   return resumo;
+}
+
+/** Erros que param a execução inteira: traduz para um código curto e, quando cabe, uma pausa. */
+function tratarErroFatal(
+  erro: unknown,
+  sit: Situacao,
+  agora: Date,
+  registrar: Registrador,
+  fluxoFalhou: (erro: unknown, onde: Onde) => boolean,
+): void {
+  if (erro instanceof OrcamentoEsgotado) {
+    registrar({ evento: "orcamento_esgotado" });
+    return;
+  }
+  sit.parouPorErro = true;
+  if (ehErroDeToken(erro)) {
+    // A troca da chave por token respondeu algo que não entendemos: nada mais funciona agora.
+    registrar({
+      evento: "formato_inesperado",
+      onde: "token",
+      campos: erro instanceof RespostaInesperadaError ? [...erro.campos] : [],
+    });
+    sit.erroCodigo = "formato_inesperado";
+    sit.pausaAte = em(agora, ESPERA_APOS_RECUSA_SEGUNDOS);
+    return;
+  }
+  // Resposta fora do formato ou acesso negado fora de um fluxo.
+  if (fluxoFalhou(erro, "atividades")) return;
+
+  if (erro instanceof ChaveInvalidaError) {
+    registrar({ evento: "chave_invalida" });
+    sit.chaveRecusada = true;
+    sit.erroCodigo = "chave_invalida";
+    sit.pausaAte = em(agora, ESPERA_APOS_RECUSA_SEGUNDOS);
+  } else if (erro instanceof TokenRecusadoError) {
+    // A Garmin aceitou a chave e recusou o token: o problema é do conector, não da chave.
+    registrar({ evento: "token_recusado" });
+    sit.chaveAceita = true;
+    sit.erroCodigo = "token_recusado";
+    sit.pausaAte = em(agora, ESPERA_APOS_RECUSA_SEGUNDOS);
+  } else if (erro instanceof LimiteExcedidoError) {
+    // Dobra a espera a cada 429 seguido (15 min, 30 min, 1 h, ... até 6 h), nunca menos que o
+    // pedido pela Garmin: esperar de verdade, sem insistir.
+    sit.falhasDeLimite += 1;
+    const crescente = Math.min(
+      ESPERA_BASE_APOS_429_SEGUNDOS * 2 ** (sit.falhasDeLimite - 1),
+      ESPERA_MAXIMA_APOS_429_SEGUNDOS,
+    );
+    const espera = Math.min(
+      Math.max(erro.esperarSegundos, crescente),
+      ESPERA_MAXIMA_APOS_429_SEGUNDOS,
+    );
+    registrar({ evento: "limite_garmin", esperarSegundos: espera });
+    sit.erroCodigo = "limite_garmin";
+    sit.pausaAte = em(agora, espera);
+  } else if (erro instanceof GarminIndisponivelError) {
+    registrar({ evento: "garmin_indisponivel", status: erro.status });
+    sit.erroCodigo = "garmin_indisponivel";
+  } else if (erro instanceof RedeGarminError) {
+    registrar({ evento: "erro_de_rede" });
+    sit.erroCodigo = "rede";
+  } else {
+    // Erro nosso (banco, bug): nada do erro vai para o log, que poderia carregar dados.
+    registrar({ evento: "erro_interno" });
+    sit.erroCodigo = "erro_interno";
+  }
 }

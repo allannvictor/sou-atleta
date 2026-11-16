@@ -9,6 +9,14 @@
 
 export const REDACTED = "[REDACTED]";
 
+/**
+ * Atenção: a proteção do `inspect` vale no Node (onde rodam os testes). O `console` da Cloudflare
+ * formata objetos do jeito dele. Em produção, a garantia de que a chave não vai para log vem de
+ * outras duas travas: o valor é um campo privado (não sai em JSON nem em cópia) e o único arquivo
+ * que escreve no console, `apps/sync/src/log.ts`, só imprime eventos de uma lista fechada.
+ * Não confie só neste tipo.
+ */
+
 /** Símbolo que o `util.inspect` do Node usa; `Symbol.for` evita importar `node:util` na Worker. */
 const INSPECIONAR = Symbol.for("nodejs.util.inspect.custom");
 

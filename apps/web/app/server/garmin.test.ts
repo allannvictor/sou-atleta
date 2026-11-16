@@ -78,6 +78,39 @@ describe("painel da Garmin", () => {
     ).toBeNull();
   });
 
+  it("importação parada por causa da chave: o quadro sabe disso", () => {
+    const progresso = [
+      {
+        fluxo: "sono" as const,
+        inicio: "2026-08-17",
+        importadoAte: "2026-10-12",
+        historicoCompleto: false,
+        verificadoEm: null,
+      },
+    ];
+    const parada = montarPainel({ ...foto({ statusDaChave: "invalida" }), progresso }, AGORA, true);
+    expect(parada.importacao).toEqual({ emAndamento: true, ate: "2026-10-12", parada: true });
+    const andando = montarPainel({ ...foto(), progresso }, AGORA, true);
+    expect(andando.importacao).toEqual({ emAndamento: true, ate: "2026-10-12", parada: false });
+  });
+
+  it("expõe a última tentativa e a última atualização separadas", () => {
+    const painel = montarPainel(
+      foto({
+        ultimoSucessoEm: "2026-11-15T10:00:00.000Z",
+        ultimaExecucaoEm: "2026-11-15T14:50:00.000Z",
+        erroCodigo: "chave_invalida",
+      }),
+      AGORA,
+      true,
+    );
+    expect(painel).toMatchObject({
+      ultimaAtualizacaoEm: "2026-11-15T10:00:00.000Z",
+      ultimaTentativaEm: "2026-11-15T14:50:00.000Z",
+      problema: "chave_invalida",
+    });
+  });
+
   it("importação: em andamento até o fluxo mais atrasado; completa quando todos terminaram", () => {
     const base = foto();
     const progresso = (fluxo: "sono" | "hrv", importadoAte: string | null, completo: boolean) => ({
@@ -99,7 +132,7 @@ describe("painel da Garmin", () => {
         AGORA,
         true,
       ).importacao,
-    ).toEqual({ emAndamento: true, ate: "2023-02-01" });
+    ).toEqual({ emAndamento: true, ate: "2023-02-01", parada: false });
     expect(
       montarPainel(
         {
@@ -109,7 +142,7 @@ describe("painel da Garmin", () => {
         AGORA,
         true,
       ).importacao,
-    ).toEqual({ emAndamento: false, ate: "2026-11-15" });
+    ).toEqual({ emAndamento: false, ate: "2026-11-15", parada: false });
   });
 });
 
@@ -120,7 +153,10 @@ describe("leitura do banco", () => {
       `INSERT INTO sincronizacao_estado (id, status_da_chave, chave_vence_em, ultimo_sucesso_em, atualizado_em)
        VALUES (1, 'ok', '2026-11-20', '2026-11-15T14:00:00.000Z', '2026-11-15T14:00:00.000Z')`,
     );
-    const painel = await lerPainel({ banco: memoria.d1, sync: {} as Fetcher }, AGORA);
+    const painel = await lerPainel(
+      { banco: memoria.d1, sync: {} as Fetcher, aoFundo: () => undefined },
+      AGORA,
+    );
     expect(painel).toMatchObject({
       situacao: "pronta",
       aviso: { tipo: "vence", dias: 5 },
@@ -137,15 +173,19 @@ describe("leitura do banco", () => {
         throw new Error("no such table: sincronizacao_estado");
       },
     } as unknown as D1Database;
-    const painel = await lerPainel({ banco: quebrado, sync: undefined }, AGORA);
+    const painel = await lerPainel(
+      { banco: quebrado, sync: undefined, aoFundo: () => undefined },
+      AGORA,
+    );
     expect(painel.situacao).toBe("indisponivel");
     expect(JSON.stringify(painel)).not.toContain("no such table");
   });
 
   it("sem D1 ligado, o site abre: nao_configurada", async () => {
-    expect((await lerPainel({ banco: undefined, sync: undefined }, AGORA)).situacao).toBe(
-      "nao_configurada",
-    );
+    expect(
+      (await lerPainel({ banco: undefined, sync: undefined, aoFundo: () => undefined }, AGORA))
+        .situacao,
+    ).toBe("nao_configurada");
   });
 });
 
@@ -193,38 +233,116 @@ describe("pedir a atualização à Worker sync", () => {
 });
 
 describe("rota /app: loader e action", () => {
-  const contexto = (sync?: Fetcher) =>
-    ({ nonce: "n", garmin: { banco: undefined, sync } }) as never;
+  const syncFalsa = (chamadas: string[], resultado = "iniciada") =>
+    ({
+      fetch: (url: string) => {
+        chamadas.push(url);
+        return Promise.resolve(Response.json({ resultado }));
+      },
+    }) as unknown as Fetcher;
+  const contexto = (sync?: Fetcher, fundo: Promise<unknown>[] = [], banco?: D1Database) =>
+    ({
+      nonce: "n",
+      garmin: { banco, sync, aoFundo: (p: Promise<unknown>) => fundo.push(p) },
+    }) as never;
   const pedido = (cabecalhos: Record<string, string> = {}) =>
     new Request("https://sou-atleta.exemplo.test/app", { method: "POST", headers: cabecalhos });
   const argumentos = (request: Request, context: never) =>
     ({ request, context, params: {} }) as never;
+  const abrir = (url = "https://sou-atleta.exemplo.test/app") => new Request(url);
 
   it("o botão só atende pedidos que vêm da própria página (Origin igual ao site)", async () => {
-    const sync = {
-      fetch: () => Promise.resolve(Response.json({ resultado: "iniciada" })),
-    } as unknown as Fetcher;
+    const sync = syncFalsa([]);
     for (const cabecalhos of [{}, { Origin: "https://site-de-fora.test" }, { Origin: "null" }]) {
       const resposta = await action(argumentos(pedido(cabecalhos), contexto(sync)));
       expect(resposta).toMatchObject({ init: { status: 403 } });
     }
   });
 
-  it("com a origem certa, pede à sync e volta para /app com o resultado", async () => {
-    const sync = {
-      fetch: () => Promise.resolve(Response.json({ resultado: "muito_cedo" })),
-    } as unknown as Fetcher;
+  it("com a origem certa, pede à sync (rota /atualizar) e volta para /app com o resultado", async () => {
+    const chamadas: string[] = [];
     const resposta = (await action(
-      argumentos(pedido({ Origin: "https://sou-atleta.exemplo.test" }), contexto(sync)),
+      argumentos(
+        pedido({ Origin: "https://sou-atleta.exemplo.test" }),
+        contexto(syncFalsa(chamadas, "chave_recusada")),
+      ),
     )) as Response;
+    expect(chamadas).toEqual(["https://sync.interno/atualizar"]);
     expect(resposta.status).toBe(302);
-    expect(resposta.headers.get("Location")).toBe("/app?atualizacao=muito_cedo");
+    expect(resposta.headers.get("Location")).toBe("/app?atualizacao=chave_recusada");
   });
 
   it("o loader entrega o painel e ignora valor desconhecido em ?atualizacao=", async () => {
     const dados = await loader(
-      argumentos(new Request("https://sou-atleta.exemplo.test/app?atualizacao=lixo"), contexto()),
+      argumentos(abrir("https://sou-atleta.exemplo.test/app?atualizacao=lixo"), contexto()),
     );
-    expect(dados).toMatchObject({ painel: { situacao: "nao_configurada" }, resultado: null });
+    expect(dados).toMatchObject({
+      painel: { situacao: "nao_configurada" },
+      resultado: null,
+      buscaPedida: false,
+    });
+  });
+
+  it("abrir a página pede a sincronização em segundo plano, sem esperar o resultado", async () => {
+    const memoria = criarD1EmMemoria();
+    const chamadas: string[] = [];
+    const fundo: Promise<unknown>[] = [];
+    let terminou = false;
+    const sync = {
+      fetch: (url: string) => {
+        chamadas.push(url);
+        // A resposta da sync demora: a página não pode esperar por ela.
+        return new Promise<Response>((resolver) => {
+          setTimeout(() => {
+            terminou = true;
+            resolver(Response.json({ resultado: "iniciada" }));
+          }, 50);
+        });
+      },
+    } as unknown as Fetcher;
+    const dados = await loader(argumentos(abrir(), contexto(sync, fundo, memoria.d1)));
+    expect(dados).toMatchObject({ buscaPedida: true });
+    expect(chamadas).toEqual(["https://sync.interno/ao-abrir"]);
+    expect(terminou).toBe(false); // a página já saiu
+    expect(fundo).toHaveLength(1);
+    await Promise.all(fundo);
+    expect(terminou).toBe(true);
+  });
+
+  it("não pede de novo se a última tentativa foi há menos de 10 minutos, nem se a Garmin pediu espera", async () => {
+    const chamadas: string[] = [];
+    const recente = criarD1EmMemoria();
+    recente.executar(
+      `INSERT INTO sincronizacao_estado (id, status_da_chave, ultima_execucao_em, atualizado_em)
+       VALUES (1, 'ok', '${new Date(Date.now() - 5 * 60_000).toISOString()}', '2026-11-15T00:00:00.000Z')`,
+    );
+    const dados = await loader(argumentos(abrir(), contexto(syncFalsa(chamadas), [], recente.d1)));
+    expect(dados).toMatchObject({ buscaPedida: false });
+    expect(chamadas).toEqual([]);
+
+    const pausada = criarD1EmMemoria();
+    pausada.executar(
+      `INSERT INTO sincronizacao_estado (id, status_da_chave, erro_codigo, pausa_ate, ultima_execucao_em, atualizado_em)
+       VALUES (1, 'ok', 'limite_garmin', '${new Date(Date.now() + 3_600_000).toISOString()}', '2026-11-14T00:00:00.000Z', '2026-11-14T00:00:00.000Z')`,
+    );
+    const outra = await loader(argumentos(abrir(), contexto(syncFalsa(chamadas), [], pausada.d1)));
+    expect(outra).toMatchObject({ buscaPedida: false });
+    expect(chamadas).toEqual([]);
+  });
+
+  it("falha ao pedir a sincronização nunca derruba a página", async () => {
+    const memoria = criarD1EmMemoria();
+    const fundo: Promise<unknown>[] = [];
+    const sync = { fetch: () => Promise.reject(new Error("caiu")) } as unknown as Fetcher;
+    await expect(
+      loader(argumentos(abrir(), contexto(sync, fundo, memoria.d1))),
+    ).resolves.toMatchObject({ buscaPedida: true });
+    await expect(Promise.all(fundo)).resolves.toBeDefined();
+  });
+
+  it("sem a ligação com a sync, não pede nada", async () => {
+    const memoria = criarD1EmMemoria();
+    const dados = await loader(argumentos(abrir(), contexto(undefined, [], memoria.d1)));
+    expect(dados).toMatchObject({ buscaPedida: false });
   });
 });

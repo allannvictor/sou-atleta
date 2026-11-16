@@ -2,10 +2,13 @@ import {
   avisoDaChave,
   criarBanco,
   hojeNoFuso,
+  INTERVALO_MINIMO_AO_ABRIR_SEGUNDOS,
   lerFotoDaSincronizacao,
+  RESULTADOS_DA_ATUALIZACAO,
   type AvisoDaChave,
   type CodigoDeErro,
   type FotoDaSincronizacao,
+  type ResultadoDaAtualizacao,
 } from "@sou-atleta/db";
 import { z } from "zod";
 
@@ -19,20 +22,30 @@ import { z } from "zod";
 export interface LigacoesDaGarmin {
   readonly banco: D1Database | undefined;
   readonly sync: Fetcher | undefined;
+  /** Deixa um trabalho continuar depois de a resposta sair (`ctx.waitUntil` da Worker). */
+  readonly aoFundo: (trabalho: Promise<unknown>) => void;
 }
 
 export type SituacaoDaConexao = "nao_configurada" | "indisponivel" | "pronta";
 
 export interface ProgressoDaImportacao {
+  /** Os últimos 3 meses ainda não terminaram de chegar. */
   readonly emAndamento: boolean;
-  /** Último dia que a importação do histórico já alcançou (o mais atrasado entre os fluxos). */
+  /** Último dia que a importação já alcançou (o mais atrasado entre os fluxos). */
   readonly ate: string | null;
+  /** Está parada por causa da chave (ausente, mal colada, recusada ou vencida). */
+  readonly parada: boolean;
 }
 
 export interface PainelDaGarmin {
   readonly situacao: SituacaoDaConexao;
   readonly aviso: AvisoDaChave | null;
+  /** Vencimento da chave informado pelo dono (`AAAA-MM-DD`), se houver. */
+  readonly chaveVenceEm: string | null;
+  /** Última vez que algo foi de fato buscado na Garmin. */
   readonly ultimaAtualizacaoEm: string | null;
+  /** Última vez que a sincronização tentou, tenha dado certo ou não. */
+  readonly ultimaTentativaEm: string | null;
   readonly importacao: ProgressoDaImportacao | null;
   /** Instante até o qual a Garmin pediu para esperar (só quando ainda vale). */
   readonly pausadaAte: string | null;
@@ -52,7 +65,9 @@ export function montarPainel(
     return {
       situacao: "nao_configurada",
       aviso: null,
+      chaveVenceEm: null,
       ultimaAtualizacaoEm: null,
+      ultimaTentativaEm: null,
       importacao: null,
       pausadaAte: null,
       problema: null,
@@ -69,6 +84,13 @@ export function montarPainel(
       ? estado.pausaAte
       : null;
 
+  const aviso = avisoDaChave(estado, hoje);
+  const chaveParada =
+    aviso !== null &&
+    (aviso.tipo === "ausente" ||
+      aviso.tipo === "mal_formada" ||
+      aviso.tipo === "invalida" ||
+      aviso.tipo === "venceu");
   const progresso = foto.progresso;
   const importacao: ProgressoDaImportacao | null =
     progresso.length === 0
@@ -82,12 +104,15 @@ export function montarPainel(
                 data === null ? menor : menor === null || data < menor ? data : menor,
               null,
             ),
+          parada: chaveParada,
         };
 
   return {
     situacao: "pronta",
-    aviso: avisoDaChave(estado, hoje),
+    aviso,
+    chaveVenceEm: estado?.chaveVenceEm ?? null,
     ultimaAtualizacaoEm: estado?.ultimoSucessoEm ?? null,
+    ultimaTentativaEm: estado?.ultimaExecucaoEm ?? null,
     importacao,
     pausadaAte,
     problema: estado?.erroCodigo ?? null,
@@ -107,16 +132,7 @@ export async function lerPainel(ligacoes: LigacoesDaGarmin, agora: Date): Promis
   }
 }
 
-export const RESULTADOS_DA_ATUALIZACAO = [
-  "iniciada",
-  "muito_cedo",
-  "pausada",
-  "ja_em_andamento",
-  "sem_chave",
-  "nao_configurada",
-  "erro",
-] as const;
-export type ResultadoDaAtualizacao = (typeof RESULTADOS_DA_ATUALIZACAO)[number];
+export { RESULTADOS_DA_ATUALIZACAO, type ResultadoDaAtualizacao };
 
 const respostaDaSync = z.object({ resultado: z.enum(RESULTADOS_DA_ATUALIZACAO) });
 
@@ -130,6 +146,29 @@ export async function pedirAtualizacao(sync: Fetcher | undefined): Promise<Resul
   } catch {
     return "erro";
   }
+}
+
+/**
+ * Ao abrir a área fechada, pede à `sync` uma sincronização, sem esperar o resultado (a página
+ * não fica mais lenta). Só pede se faz mais de 10 minutos da última tentativa e a Garmin não
+ * pediu para esperar; a `sync` confere de novo, então isto só poupa a viagem até ela.
+ */
+export function devePedirAoAbrir(painel: PainelDaGarmin, agora: Date): boolean {
+  if (painel.situacao !== "pronta" || !painel.podeAtualizar || painel.pausadaAte !== null) {
+    return false;
+  }
+  if (painel.ultimaTentativaEm === null) return true;
+  return (
+    agora.getTime() - Date.parse(painel.ultimaTentativaEm) >=
+    INTERVALO_MINIMO_AO_ABRIR_SEGUNDOS * 1000
+  );
+}
+
+export function pedirAoAbrir(sync: Fetcher): Promise<void> {
+  return sync.fetch("https://sync.interno/ao-abrir", { method: "POST" }).then(
+    () => undefined,
+    () => undefined,
+  );
 }
 
 /** Aceita só os resultados conhecidos na URL (`?atualizacao=`); qualquer outra coisa é ignorada. */
