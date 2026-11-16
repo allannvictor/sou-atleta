@@ -1,1 +1,1 @@
-Prints do PR da issue #5 (quadro "Sua conta Garmin" e botão "Atualizar agora"). Branch só de provas; não deve ser mesclada na main.
+Prints do PR da issue #5 (quadro "Sua conta Garmin" e botao "Atualizar agora"), 11 estados, celular 390 px e desktop 1100 px, claro e escuro. Geradas do componente real com o CSS real; axe sem violacoes nas 44 paginas. Branch so de provas; nao deve ser mesclada na main.
