@@ -1,0 +1,21 @@
+{
+  "name": "@sou-atleta/narrative",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Textos do Sou Atleta: modelos de texto e checagem de linguagem. Só recebe fatos já calculados pelo core.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@sou-atleta/core": "workspace:*"
+  },
+  "devDependencies": {
+    "fast-check": "4.10.2",
+    "vitest": "4.1.12"
+  }
+}

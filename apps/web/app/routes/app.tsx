@@ -2,6 +2,7 @@ import { data, redirect } from "react-router";
 
 import { AreaFechada } from "../componentes/area-fechada";
 import { NOME_DO_APP } from "../config";
+import { lerMomentoAtual } from "../server/momento-atual";
 import {
   devePedirAoAbrir,
   lerPainel,
@@ -25,7 +26,8 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   if (buscaPedida && context.garmin.sync !== undefined) {
     context.garmin.aoFundo(pedirAoAbrir(context.garmin.sync));
   }
-  return { painel, resultado, buscaPedida };
+  const momento = await lerMomentoAtual(context.garmin, agora);
+  return { painel, resultado, buscaPedida, momento };
 }
 
 /**
@@ -48,6 +50,7 @@ export default function Area({ loaderData }: Route.ComponentProps) {
       painel={loaderData.painel}
       resultado={loaderData.resultado}
       buscaPedida={loaderData.buscaPedida}
+      momento={loaderData.momento}
     />
   );
 }
