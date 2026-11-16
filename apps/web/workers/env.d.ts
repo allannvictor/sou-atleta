@@ -16,7 +16,7 @@ interface Env {
    */
   readonly EMAILS_PERMITIDOS?: string;
   /**
-   * Banco D1 da sincronização (só leitura aqui: quem escreve é a Worker `sync`). Opcional de
+   * Banco D1 da sincronização (o site só lê, por convenção e lint; o binding do D1 permite escrita, e quem escreve é a Worker `sync`). Opcional de
    * propósito: a ligação só existe depois de o dono criar o banco e descomentar o bloco em
    * wrangler.jsonc; sem ela o site abre normalmente e a área fechada diz que a Garmin ainda não
    * foi configurada. Passo a passo em docs/decisoes/0005-arquitetura.md.

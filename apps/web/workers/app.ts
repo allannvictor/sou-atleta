@@ -7,7 +7,7 @@ declare module "react-router" {
     /** Nonce do CSP desta resposta. */
     nonce: string;
     /**
-     * O que a área fechada usa para falar da Garmin: o banco (só leitura) e a ligação com a
+     * O que a área fechada usa para falar da Garmin: o banco (o site só lê, por convenção e lint; o binding do D1 permite escrita) e a ligação com a
      * Worker `sync`. Nunca a chave da Garmin, e nunca o `env` inteiro (que tem a lista de e-mails).
      */
     garmin: {
