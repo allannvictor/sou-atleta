@@ -78,6 +78,8 @@ const esquemaDoEvento = z.discriminatedUnion("evento", [
   z.strictObject({ evento: z.literal("garmin_indisponivel"), status: z.number().int() }),
   z.strictObject({ evento: z.literal("erro_de_rede") }),
   z.strictObject({ evento: z.literal("erro_interno") }),
+  z.strictObject({ evento: z.literal("dados_apagados"), tabelas: contagem }),
+  z.strictObject({ evento: z.literal("apagar_recusado_chave_presente") }),
 ]);
 
 export type EventoDeLog = z.input<typeof esquemaDoEvento>;

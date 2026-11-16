@@ -469,3 +469,27 @@ p {
   outline-offset: 2px;
   border-radius: 2px;
 }
+
+/* O link "Sair" tem o mesmo aspecto do botão (e a mesma área de toque). */
+a.botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.pagina input[type="text"] {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  color: var(--texto);
+  background: var(--fundo);
+  border: 2px solid var(--borda);
+  border-radius: 0.5rem;
+  max-width: 100%;
+}
+
+.pagina input[type="text"]:focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: 2px;
+}

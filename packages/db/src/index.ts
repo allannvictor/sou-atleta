@@ -3,3 +3,4 @@ export * from "./esquema.js";
 export * from "./estado.js";
 export * from "./gravacao.js";
 export * from "./leitura.js";
+export * from "./apagar.js";

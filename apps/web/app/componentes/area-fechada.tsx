@@ -21,6 +21,9 @@ export function AreaFechada({
     <>
       <h1>Você está dentro</h1>
       <p>Esta é a área fechada do {NOME_DO_APP}. As telas do app vão ficar aqui.</p>
+      <p>
+        <a href="/app/conta">Sua conta: sair, desconectar a Garmin ou apagar tudo</a>
+      </p>
       <MomentoAtualQuadro momento={momento} />
       <PainelGarmin painel={painel} resultado={resultado} buscaPedida={buscaPedida} />
     </>

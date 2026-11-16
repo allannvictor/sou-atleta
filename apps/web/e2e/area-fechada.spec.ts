@@ -10,6 +10,7 @@ const CAMINHOS_FECHADOS = [
   "/app",
   "/app/",
   "/app/qualquer/coisa",
+  "/app/conta",
   "/App",
   "/APP",
   "/%61pp",
