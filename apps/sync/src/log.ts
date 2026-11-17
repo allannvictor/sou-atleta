@@ -80,6 +80,7 @@ const esquemaDoEvento = z.discriminatedUnion("evento", [
   z.strictObject({ evento: z.literal("erro_interno") }),
   z.strictObject({ evento: z.literal("dados_apagados"), tabelas: contagem }),
   z.strictObject({ evento: z.literal("apagar_recusado_chave_presente") }),
+  z.strictObject({ evento: z.literal("apagar_recusado_sincronizando") }),
 ]);
 
 export type EventoDeLog = z.input<typeof esquemaDoEvento>;

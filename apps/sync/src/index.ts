@@ -2,6 +2,7 @@ import {
   apagarTudo,
   criarBanco,
   NOMES_DAS_TABELAS,
+  sincronizacaoEmAndamento,
   type ResultadoDaAtualizacao,
   type ResultadoDoApagar,
 } from "@sou-atleta/db";
@@ -90,7 +91,14 @@ async function apagarTudoDoApp(env: Env): Promise<ResultadoDoApagar> {
     registrarNoConsole({ evento: "apagar_recusado_chave_presente" });
     return "chave_presente";
   }
-  await apagarTudo(criarBanco(env.DB));
+  const banco = criarBanco(env.DB);
+  // Uma execução ainda viva (por exemplo, de uma versão antiga da Worker que ainda tinha a chave)
+  // gravaria dados de volta depois do apagar: espera a trava de 5 minutos passar.
+  if (await sincronizacaoEmAndamento(banco, new Date().toISOString())) {
+    registrarNoConsole({ evento: "apagar_recusado_sincronizando" });
+    return "sincronizacao_em_andamento";
+  }
+  await apagarTudo(banco);
   registrarNoConsole({ evento: "dados_apagados", tabelas: NOMES_DAS_TABELAS.length });
   return "apagado";
 }

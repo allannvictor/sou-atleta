@@ -21,7 +21,9 @@ describe("tela Sua conta", () => {
       "as cópias de segurança do banco, que somem em até 7 dias",
       "os registros técnicos da sincronização, que somem em até 3 dias e não têm dados de saúde",
       "nada é apagado na Garmin",
-      "wrangler secret delete GARMIN_API_KEY",
+      "pnpm --filter @sou-atleta/sync exec wrangler secret delete GARMIN_API_KEY",
+      "Detalhes técnicos do passo 2",
+      "o app confere sozinho: se a chave ainda estiver guardada, ele recusa e não apaga nada",
     ]) {
       expect(t).toContain(trecho);
     }
@@ -41,6 +43,8 @@ describe("tela Sua conta", () => {
     expect(texto("apagado")).toContain("Pronto. Tudo o que o app guardava foi apagado.");
     expect(texto("chave_presente")).toContain("Antes de apagar, desconecte a Garmin");
     expect(texto("confirmacao_errada")).toContain("Nada foi apagado. Digite APAGAR");
+    expect(texto("sincronizacao_em_andamento")).toContain("Uma sincronização está terminando");
+    expect(texto("nao_configurada")).toContain("neste site. Nada foi apagado.");
     expect(marcacao("erro")).toContain('role="status"');
     expect(marcacao()).not.toContain('role="status"');
   });

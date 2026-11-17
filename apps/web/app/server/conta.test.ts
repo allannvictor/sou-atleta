@@ -9,7 +9,13 @@ const falsa = (resposta: () => Promise<Response>) => ({ fetch: resposta }) as un
 
 describe("pedir à sync que apague", () => {
   it("devolve só resultados conhecidos", async () => {
-    for (const resultado of ["apagado", "chave_presente", "nao_configurada", "erro"]) {
+    for (const resultado of [
+      "apagado",
+      "chave_presente",
+      "sincronizacao_em_andamento",
+      "nao_configurada",
+      "erro",
+    ]) {
       expect(
         await pedirApagarTudo(falsa(() => Promise.resolve(Response.json({ resultado })))),
       ).toBe(resultado);

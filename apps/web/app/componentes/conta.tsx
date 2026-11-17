@@ -10,7 +10,9 @@ export const MENSAGENS_DO_APAGAR: Readonly<Record<ResultadoNaTela, string>> = {
   apagado: "Pronto. Tudo o que o app guardava foi apagado.",
   chave_presente:
     "Antes de apagar, desconecte a Garmin: a chave ainda está no cofre. Siga os passos da seção anterior e peça de novo.",
-  nao_configurada: "A sincronização ainda não está ligada, então não há o que apagar daqui.",
+  sincronizacao_em_andamento:
+    "Uma sincronização está terminando. Nada foi apagado. Peça de novo em alguns minutos.",
+  nao_configurada: "A sincronização ainda não está ligada neste site. Nada foi apagado.",
   erro: "Não conseguimos apagar agora. Nada foi apagado. Peça de novo em instantes.",
   confirmacao_errada: `Nada foi apagado. Digite ${PALAVRA_DE_CONFIRMACAO}, em maiúsculas, para confirmar.`,
 };
@@ -45,18 +47,36 @@ export function ContaQuadro({ resultado }: { readonly resultado: ResultadoNaTela
         </p>
         <ol>
           <li>
-            No Garmin Connect Web, apague a chave da Personal API. A Garmin a invalida na hora.
+            No Garmin Connect (o site da Garmin), apague a chave da Personal API. A Garmin a
+            invalida na hora.
           </li>
           <li>
-            Remova a chave do cofre de segredos da Cloudflare, na Worker{" "}
-            <code>sou-atleta-sync</code>, com <code>wrangler secret delete GARMIN_API_KEY</code> e
-            depois <code>wrangler secret delete GARMIN_CHAVE_VENCE_EM</code>.
+            Remova também a chave guardada no app. Nesta fase isso é feito no computador, com dois
+            comandos (veja os detalhes abaixo).
           </li>
           <li>
-            Abra o início e toque em &ldquo;Atualizar agora&rdquo;: o quadro da Garmin passa a dizer
-            que a chave não está cadastrada.
+            Depois, em &ldquo;Apagar minha conta&rdquo;, o app confere sozinho: se a chave ainda
+            estiver guardada, ele recusa e não apaga nada.
           </li>
         </ol>
+        <details>
+          <summary>Detalhes técnicos do passo 2</summary>
+          <p>
+            Na pasta do projeto, rode estes dois comandos. O destino tem de ser a Worker{" "}
+            <code>sou-atleta-sync</code>:
+          </p>
+          <pre>
+            <code>
+              pnpm --filter @sou-atleta/sync exec wrangler secret delete GARMIN_API_KEY
+              {"\n"}
+              pnpm --filter @sou-atleta/sync exec wrangler secret delete GARMIN_CHAVE_VENCE_EM
+            </code>
+          </pre>
+          <p>
+            Para conferir, <code>wrangler secret list</code> na <code>sou-atleta-sync</code> não
+            pode mais listar nenhum nome que comece com <code>GARMIN_</code>.
+          </p>
+        </details>
       </section>
 
       <section aria-labelledby="titulo-apagar">

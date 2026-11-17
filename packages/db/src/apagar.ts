@@ -1,3 +1,5 @@
+import { eq } from "drizzle-orm";
+
 import type { Banco } from "./banco.js";
 import {
   atividade,
@@ -33,6 +35,7 @@ export const NOMES_DAS_TABELAS: readonly string[] = TABELAS.map(([nome]) => nome
 export const RESULTADOS_DO_APAGAR = [
   "apagado",
   "chave_presente",
+  "sincronizacao_em_andamento",
   "nao_configurada",
   "erro",
 ] as const;
@@ -44,4 +47,16 @@ export async function apagarTudo(banco: Banco): Promise<void> {
     banco,
     TABELAS.map(([, tabela]) => banco.delete(tabela)),
   );
+}
+
+/**
+ * Uma execução da sincronização está viva (a trava dura 5 minutos). Apagar no meio dela deixaria a
+ * execução gravar dados de volta depois do "Pronto, tudo apagado"; por isso o apagar espera.
+ */
+export async function sincronizacaoEmAndamento(banco: Banco, agora: string): Promise<boolean> {
+  const [linha] = await banco
+    .select({ travaAte: sincronizacaoEstado.travaAte })
+    .from(sincronizacaoEstado)
+    .where(eq(sincronizacaoEstado.id, 1));
+  return linha?.travaAte !== undefined && linha.travaAte !== null && linha.travaAte > agora;
 }

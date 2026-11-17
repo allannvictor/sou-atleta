@@ -1,4 +1,11 @@
-import { criarBanco, gravarAtividade, gravarDiaSono, NOMES_DAS_TABELAS } from "@sou-atleta/db";
+import {
+  criarBanco,
+  gravarAtividade,
+  gravarDiaSono,
+  lerFotoGarantindoEstado,
+  NOMES_DAS_TABELAS,
+  tentarPegarTrava,
+} from "@sou-atleta/db";
 import { criarD1EmMemoria } from "@sou-atleta/db/teste";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -64,6 +71,26 @@ describe("POST /apagar-tudo", () => {
     expect(await resposta.json()).toEqual({ resultado: "apagado" });
     for (const tabela of NOMES_DAS_TABELAS)
       expect(await linhas(memoria.d1, tabela), tabela).toBe(0);
+  });
+
+  it("com uma sincronização em andamento (trava viva), recusa e nada é apagado; passada a trava, apaga", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const memoria = await bancoComDados();
+    const banco = criarBanco(memoria.d1);
+    await lerFotoGarantindoEstado(banco, "2026-11-15T10:00:00.000Z");
+    // Trava viva até 2099: uma execução (por exemplo, de versão antiga da Worker) ainda roda.
+    await tentarPegarTrava(banco, "2026-11-15T10:00:00.000Z", "2099-01-01T00:00:00.000Z");
+
+    const recusada = await worker.fetch(pedir(), { DB: memoria.d1 }, ctx);
+    expect(await recusada.json()).toEqual({ resultado: "sincronizacao_em_andamento" });
+    expect(await linhas(memoria.d1, "atividade")).toBe(1);
+    expect(await linhas(memoria.d1, "dia_sono")).toBe(1);
+
+    // Trava vencida (uma execução cortada não prende o apagar para sempre).
+    memoria.executar("UPDATE sincronizacao_estado SET trava_ate = '2000-01-01T00:00:00.000Z'");
+    const feita = await worker.fetch(pedir(), { DB: memoria.d1 }, ctx);
+    expect(await feita.json()).toEqual({ resultado: "apagado" });
+    expect(await linhas(memoria.d1, "atividade")).toBe(0);
   });
 
   it("segredo vazio ou só com espaços conta como chave ausente", async () => {
