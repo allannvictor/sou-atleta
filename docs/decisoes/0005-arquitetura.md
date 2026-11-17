@@ -95,6 +95,8 @@ Especificação aprovada pelo dono em 15/11/2026, com as decisões A e B do últ
 
 > **NÃO cadastre a chave (o passo de `wrangler secret put GARMIN_API_KEY`) antes de a política de privacidade revista e a issue #22 (pelo menos "Apagar minha conta" e "Desconectar a Garmin") estarem mescladas.**
 
+**Liberada em 17/11/2026** no PR que fechou a #29 (política revista), depois da #22: `POLITICA_REVISTA` passou a `"sim"`. O texto abaixo explica como a trava funciona; voltar para `"nao"` trava a sincronização de novo, sem apagar nada.
+
 **Trava mecânica (não só de texto):** a variável `POLITICA_REVISTA` em `apps/sync/wrangler.jsonc` (`vars`) começa em `"nao"`. Enquanto não for exatamente `"sim"`, a sync **não fala com a Garmin, nem com a chave cadastrada** (nem ao abrir a página, nem no botão): grava o código `nao_liberada` e o quadro diz "A sincronização com a Garmin ainda não foi liberada". **Essa linha só muda para `"sim"` no PR que fechar a #29 (política revista), e depois da #22.** Dois testes cuidam disso: sem `"sim"`, nenhuma chamada à Garmin acontece (`apps/sync/src/chave-e-erros.test.ts` e `index.test.ts`); com `"sim"`, a política não pode mais dizer que o site "ainda não está conectado a nenhuma conta Garmin" (`configuracao.test.ts`).
 
 Motivo: a 0007 diz que, antes de qualquer dado real entrar, a política é atualizada com nova data, e a #22 precisa existir antes de dado real. Enquanto o dono não cadastrar a chave, o conector fica inerte: o D1 não tem dado e a sync mostra "chave não cadastrada". Criar o banco, aplicar a migração e publicar a sync **não** trazem dado nenhum e podem ser feitos antes; só o passo da chave é travado. A política completa para o conector ativo e a #22 ficam em PRs separados.
@@ -155,7 +157,7 @@ O D1 é de um dono só (`perfil_treino` tem `CHECK id = 1`). Se um e-mail de ami
 ### Passo a passo do dono (nesta ordem)
 
 1. `pnpm install` e, na pasta do projeto, `pnpm --filter @sou-atleta/sync exec wrangler login` (se ainda não estiver).
-2. Criar o banco: `pnpm --filter @sou-atleta/sync exec wrangler d1 create sou-atleta`. Copiar o `database_id`.
+2. Criar o banco **na América do Norte** (decisão D4 da #29, 17/11/2026: o D1 não tem opção para a América do Sul): `pnpm --filter @sou-atleta/sync exec wrangler d1 create sou-atleta --location enam`. Copiar o `database_id`. **Antes de cadastrar a chave (passo 8), conferir no painel da Cloudflare (Storage & databases, D1) que o banco ficou na América do Norte**: a dica de localização não muda depois de criado, e a política diz "na América do Norte" (achado 7 da revisão jurídica do PR #42). Se ficar em outro lugar, apagar o banco vazio e criar de novo.
 3. Em `apps/sync/wrangler.jsonc`, trocar `COLOQUE-AQUI-O-ID-DO-D1` pelo id. Em `apps/web/wrangler.jsonc`, tirar o `//` das duas linhas comentadas (`d1_databases` e `services`) e pôr o mesmo id. (O agente pode fazer essa troca num PR pequeno, se o dono passar o id.)
 4. **Aprovar e aplicar a migração** (a primeira do projeto): `pnpm --filter @sou-atleta/sync exec wrangler d1 migrations apply sou-atleta --remote`.
 5. Mesclar o PR do passo 3 (o deploy publica a sync e depois o site). Sem chave, `/app` mostra "Chave não cadastrada". Os logs da sync começam aqui.

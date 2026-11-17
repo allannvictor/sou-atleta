@@ -8,7 +8,7 @@ export function meta() {
     {
       name: "description",
       content:
-        "Como o Sou Atleta trata dados pessoais: o que acontece hoje, o que ainda não está ativo e o que prometemos cumprir.",
+        "Como o Sou Atleta trata dados pessoais: o que acontece hoje, na primeira etapa, e o que ainda não está ativo.",
     },
   ];
 }
@@ -55,10 +55,11 @@ function Secao({
 }
 
 /**
- * Texto da política de privacidade (decisão 0007). Regra de ouro: só afirmar o que o app faz
- * hoje. O que depende do conector Garmin vem marcado "Ainda não ativo" e descreve o
- * compromisso. Qualquer mudança de comportamento exige atualizar este texto e a data em
- * `config.ts` antes de entrar no ar.
+ * Texto da política de privacidade (decisão 0007; revisão da issue #29, conector Garmin ativo).
+ * Regra de ouro: só afirmar o que o app faz hoje. Na etapa 1, o único usuário é o responsável
+ * pelo projeto, com os próprios dados. O que continua futuro vem marcado "Ainda não ativo".
+ * Qualquer mudança de comportamento exige atualizar este texto e a data em `config.ts` antes de
+ * entrar no ar.
  */
 export default function Privacidade() {
   return (
@@ -74,32 +75,37 @@ export default function Privacidade() {
         <p>Hoje, o site do {NOME_DO_APP}:</p>
         <ul className="lista-simples">
           <li>
-            <strong>não coleta dados de quem o visita</strong>;
-          </li>
-          <li>
-            nas páginas públicas, não define cookies e não tem rastreadores nem análise de uso;
+            nas páginas públicas, <strong>não coleta dados de quem o visita</strong>, não define
+            cookies e não tem rastreadores nem análise de uso;
           </li>
           <li>
             está com os registros de funcionamento desligados: o projeto não guarda registros de
-            quem o visita. Só a rotina que busca os dados na Garmin, quando for ligada, vai guardar
-            registros de eventos técnicos, por 3 dias (<RefSecao numero={4} />
+            quem o visita;
+          </li>
+          <li>
+            <strong>trata dados de saúde de uma única pessoa: o responsável pelo projeto</strong>,
+            que usa a área fechada com os próprios dados da Garmin. Mais ninguém usa o app nesta
+            fase;
+          </li>
+          <li>
+            guarda, na rotina que busca os dados na Garmin, registros de eventos técnicos, por 3
+            dias, feitos para não levar dados de saúde (<RefSecao numero={4} />
             );
           </li>
           <li>
-            ainda não está conectado a nenhuma conta Garmin, então{" "}
-            <strong>ainda não trata dados de saúde</strong>.
+            registra, no serviço que controla a entrada na área fechada, cada entrada, por 24 horas
+            (<RefSecao numero={4} />
+            ).
           </li>
         </ul>
         <p>
-          As partes que dependem dessa conexão estão marcadas com &ldquo;Ainda não ativo&rdquo; e
-          descrevem o que vamos cumprir quando ela existir. Antes de qualquer dado real entrar, esta
-          política será atualizada, com nova data.
+          O que ainda é futuro está marcado com &ldquo;Ainda não ativo&rdquo; e descreve o que vamos
+          cumprir. Antes de qualquer mudança, esta política é atualizada, com nova data.
         </p>
         <p>
-          Quando a conexão existir, haverá três ações diferentes. Os detalhes estão na{" "}
-          <RefSecao numero={7} />.
+          Há três ações diferentes, na página &ldquo;Sua conta&rdquo;, dentro da área fechada. Os
+          detalhes estão na <RefSecao numero={7} />.
         </p>
-        <AindaNaoAtivo />
         <dl className="acoes">
           <div>
             <dt>Sair</dt>
@@ -110,14 +116,18 @@ export default function Privacidade() {
           <div>
             <dt>Desconectar a Garmin</dt>
             <dd>
-              Interrompe a sincronização (o app deixa de buscar dados novos na Garmin) e apaga a
-              chave de acesso (a autorização que a Garmin deu ao app, sem a sua senha). Mantém o
-              histórico que já veio da Garmin.
+              Interrompe a sincronização (o app deixa de buscar dados novos na Garmin) e faz a chave
+              de acesso (a autorização que a Garmin deu ao app, sem a sua senha) deixar de valer.
+              Nesta fase, são dois passos feitos por você, à mão. Mantém o histórico que já veio da
+              Garmin.
             </dd>
           </div>
           <div>
             <dt>Apagar minha conta</dt>
-            <dd>Apaga tudo o que o app guarda sobre você. Não dá para desfazer.</dd>
+            <dd>
+              Apaga os dados que o app guarda no banco, na hora. Não dá para desfazer. O que fica de
+              fora está na <RefSecao numero={7} />.
+            </dd>
           </div>
         </dl>
         <p>
@@ -131,63 +141,113 @@ export default function Privacidade() {
 
       <Secao numero={1} titulo="Quais dados">
         <p>
-          <strong>Hoje, nas páginas públicas:</strong> nenhum dado que você forneça. A Cloudflare,
-          empresa que entrega o site, processa dados técnicos da conexão, como o endereço de
-          internet (IP) do seu aparelho, para o site funcionar e se proteger de abusos. O projeto
-          não guarda esses dados.
+          <strong>Nas páginas públicas:</strong> nenhum dado que você forneça. A Cloudflare, empresa
+          que entrega o site, processa dados técnicos da conexão, como o endereço de internet (IP)
+          do seu aparelho, para o site funcionar e se proteger de abusos. O projeto não guarda esses
+          dados.
         </p>
         <p>
-          <strong>Hoje, na área fechada:</strong> o acesso é restrito ao responsável pelo projeto. O
+          <strong>Na área fechada:</strong> o acesso é restrito ao responsável pelo projeto. O
           serviço Cloudflare Access confere o e-mail de quem tenta entrar e guarda, só nessa área,
           um cookie de sessão (chamado CF_Authorization), um pequeno arquivo que mantém você
-          conectado. Visitantes das páginas públicas não passam por isso.
+          conectado. Visitantes das páginas públicas não passam por isso. Para entrar, usa-se uma
+          conta Google ou um código enviado por e-mail; com a conta Google, o Google fica sabendo de
+          cada entrada, mas não recebe dados de saúde. O Access também registra cada entrada (
+          <RefSecao numero={4} />
+          ).
+        </p>
+        <p>
+          <strong>Dados que vêm da Garmin</strong>, da conta do responsável pelo projeto. O app
+          guarda uma cópia de:
+        </p>
+        <ul className="lista-simples" aria-label="Dados que vêm da Garmin">
+          <li>
+            atividades de todas as modalidades (corrida, pedal, natação e outras): data e hora de
+            início, tipo, duração, distância, frequência cardíaca (FC) média e máxima, se a FC veio
+            do pulso ou de uma cinta, tempo em cada zona de FC, VO2max (a estimativa da Garmin de
+            quanto oxigênio o seu corpo usa no esforço máximo) e Training Effect (o efeito do
+            treino, segundo a Garmin);
+          </li>
+          <li>
+            variabilidade da frequência cardíaca (HRV) da noite (a média e o maior valor em 5
+            minutos) e da semana, e o estado dela segundo a Garmin;
+          </li>
+          <li>sono: tempo total, tempo em cada fase e tempo acordado;</li>
+          <li>
+            resumo do dia: FC de repouso (e se veio do pulso ou de uma cinta), estresse e Body
+            Battery (a sua energia ao longo do dia, segundo a Garmin);
+          </li>
+          <li>
+            zonas de FC de cada esporte, o método e os valores usados para elas (FC máxima, de
+            repouso e de limiar);
+          </li>
+          <li>
+            perfil de treino: sistema de medidas, fuso horário e dias preferidos para treinar e para
+            treinos longos.
+          </li>
+        </ul>
+        <p>
+          O fuso horário e a hora local das atividades revelam a região aproximada em que você está.
+          O app não guarda o trajeto de GPS, a localização exata, o seu nome, o seu e-mail, a sua
+          foto, a senha da Garmin nem a chave de acesso.
+        </p>
+        <p>
+          O app também guarda informações técnicas da própria sincronização: até que dia os dados já
+          vieram, quando ela rodou, a data de vencimento da chave informada pelo responsável e
+          códigos curtos de erro. Nunca a chave de acesso.
+        </p>
+        <p>
+          Na primeira vez, o app traz só os últimos 90 dias. Depois, busca só o que é novo, e só
+          quando você abre o app ou toca em &ldquo;Atualizar agora&rdquo;.
         </p>
         <AindaNaoAtivo />
         <p>
-          Quando o conector com a Garmin existir: atividades de corrida, frequência cardíaca,
-          variabilidade da frequência cardíaca (HRV), sono, estresse e perfil de treino, vindos da
-          sua conta Garmin. Na primeira etapa, não pedimos a senha da sua conta Garmin, seu nome
-          completo nem o trajeto de GPS das corridas.
-        </p>
-        <p>
-          Também guardaremos o e-mail que você usar para entrar, só para avisos sobre a sua conta,
-          como o aviso antes de apagar por falta de uso e a confirmação de um pedido de exclusão.
-          Não usamos esse e-mail para publicidade.
+          Na etapa seguinte, com outras pessoas, guardaremos o e-mail que você usar para entrar, só
+          para avisos sobre a sua conta, como o aviso antes de apagar por falta de uso e a
+          confirmação de um pedido de exclusão. Não usamos esse e-mail para publicidade.
         </p>
       </Secao>
 
       <Secao numero={2} titulo="Para quê e por quanto tempo">
         <p>
-          Hoje, os dados técnicos da conexão servem só para o site funcionar com segurança, e o
-          projeto não os guarda.
+          Os dados técnicos da conexão servem só para o site funcionar com segurança, e o projeto
+          não os guarda.
+        </p>
+        <p>
+          Os dados que vêm da Garmin são usados só para calcular e explicar as métricas do próprio
+          atleta. Nada é vendido, compartilhado ou usado para publicidade.
+        </p>
+        <p>
+          Seus dados ficam guardados até você usar &ldquo;Apagar minha conta&rdquo;. O que
+          &ldquo;Sair&rdquo;, &ldquo;Desconectar a Garmin&rdquo; e &ldquo;Apagar minha conta&rdquo;
+          fazem com os seus dados está na <RefSecao numero={7} />.
         </p>
         <AindaNaoAtivo />
         <p>
-          Quando houver dados de saúde, eles serão usados só para calcular e explicar as métricas do
-          próprio atleta. Nada é vendido, compartilhado ou usado para publicidade.
-        </p>
-        <p>
-          Seus dados ficam guardados até você usar &ldquo;Apagar minha conta&rdquo; ou até 24 meses
-          sem uso. Conta como uso entrar no app; a sincronização automática não conta. Antes de
-          apagar por falta de uso, avisamos você por e-mail.
-        </p>
-        <p>
-          O que &ldquo;Sair&rdquo;, &ldquo;Desconectar a Garmin&rdquo; e &ldquo;Apagar minha
-          conta&rdquo; fazem com os seus dados está na <RefSecao numero={7} />.
+          Na etapa seguinte, os dados também serão apagados depois de 24 meses sem uso. Conta como
+          uso entrar no app. Antes de apagar por falta de uso, avisaremos você por e-mail.
         </p>
       </Secao>
 
       <Secao numero={3} titulo="Por que podemos usar seus dados (base legal)">
-        <AindaNaoAtivo />
         <p>
           A lei brasileira de proteção de dados (LGPD) trata dados de saúde como dados sensíveis,
-          que pedem mais cuidado. Por isso, antes de usar qualquer um deles, o app vai pedir o seu{" "}
-          <strong>consentimento específico e destacado</strong>, em uma tela só para isso, no
-          primeiro acesso. Sem o seu consentimento, nenhum dado de saúde é usado.
+          que pedem mais cuidado. Nesta fase, a única pessoa cujos dados o app trata é o próprio
+          responsável pelo projeto, que decidiu conectar a sua conta Garmin para usar os próprios
+          dados. Nesta fase, o tratamento acontece por decisão do próprio titular, que é também o
+          responsável pelo projeto. Ainda não existe tela de consentimento, porque ninguém mais usa
+          o app.
         </p>
         <p>
-          Você pode revogar (retirar) o seu consentimento a qualquer momento. Se você revogar,
-          paramos de usar os seus dados e apagamos a sua conta. Como pedir: <RefSecao numero={7} />.
+          Você pode revogar (retirar) essa decisão a qualquer momento, e quem consentir depois
+          também poderá. Se você revogar, paramos de usar os seus dados e apagamos a sua conta. Como
+          pedir: <RefSecao numero={7} />.
+        </p>
+        <AindaNaoAtivo />
+        <p>
+          Antes de qualquer outra pessoa usar o app, ele vai pedir o seu{" "}
+          <strong>consentimento específico e destacado</strong>, em uma tela só para isso, no
+          primeiro acesso. Sem o seu consentimento, nenhum dado de saúde é usado.
         </p>
       </Secao>
 
@@ -196,34 +256,46 @@ export default function Privacidade() {
           O site roda na Cloudflare, que pode processar a conexão em servidores fora do Brasil. A
           conexão entre o seu navegador e o site é protegida (o endereço começa com https).
         </p>
-        <AindaNaoAtivo />
         <p>
-          Quando houver dados de saúde, eles ficarão guardados na Cloudflare, possivelmente em
-          servidores fora do Brasil. A lei chama isso de transferência internacional de dados, e
-          vamos avisar aqui e no consentimento antes de ela começar.
+          Os dados que vêm da Garmin ficam guardados no banco de dados da Cloudflare,{" "}
+          <strong>fora do Brasil</strong>, na América do Norte. O país exato é escolhido pela
+          Cloudflare, perto dessa preferência. A lei chama isso de transferência internacional de
+          dados.
         </p>
         <p>
-          Como vamos protegê-los: a chave de acesso à sua conta Garmin fica guardada de forma
-          protegida e é apagada quando você desconectar a Garmin (<RefSecao numero={6} /> e{" "}
-          <RefSecao numero={7} />
-          ), e a inteligência artificial só recebe números, sem seu nome nem seu e-mail (
-          <RefSecao numero={5} />
+          Como os protegemos: só o responsável pelo projeto entra na área fechada, depois de
+          confirmar o e-mail; a chave de acesso à Garmin fica no cofre de segredos da Cloudflare (
+          <RefSecao numero={6} />
+          ); o app guarda só o necessário para as métricas (<RefSecao numero={1} />
+          ); e a inteligência artificial, quando existir, só vai receber números, sem seu nome nem
+          seu e-mail (<RefSecao numero={5} />
           ).
         </p>
         <p>
-          <strong>Registros de funcionamento da sincronização.</strong> A parte do app que busca os
-          seus dados na Garmin (a rotina de sincronização) vai guardar registros de funcionamento no
-          serviço de registros da Cloudflare, por 3 dias. Eles dizem só o que aconteceu, por exemplo
-          &ldquo;um lote de dados chegou da Garmin&rdquo; ou &ldquo;a Garmin pediu para
-          esperar&rdquo;. Nunca levam a sua chave de acesso, a autorização temporária que a Garmin
-          entrega em troca dela, nem dados de saúde. Esses registros existem só nessa rotina: o site
-          que você vê continua sem registros.
+          <strong>Registros de funcionamento da sincronização.</strong> A rotina que busca os seus
+          dados na Garmin guarda registros de funcionamento no serviço de registros da Cloudflare,
+          por 3 dias. Eles dizem só o que aconteceu, por exemplo &ldquo;um pedaço dos seus dados
+          chegou da Garmin&rdquo; ou &ldquo;a Garmin pediu para esperar&rdquo;. Nunca levam a sua
+          chave de acesso, a autorização temporária que a Garmin entrega em troca dela, nem dados de
+          saúde. Se acontecer um erro inesperado, a própria Cloudflare também pode registrá-lo. A
+          rotina foi feita para que esses registros também não levem nada disso. Esses registros
+          existem só nessa rotina: o site que você vê continua sem registros.
+        </p>
+        <p>
+          <strong>Registros de entrada na área fechada.</strong> O Cloudflare Access registra cada
+          entrada na área fechada: o e-mail, o endereço de internet (IP) e o país. No plano que o
+          projeto usa, a Cloudflare guarda esses registros por 24 horas.
+        </p>
+        <p>
+          Os prazos de 3 dias, de 24 horas e o das cópias de segurança (<RefSecao numero={7} />)
+          valem no plano gratuito da Cloudflare, que o projeto usa. Se o plano mudar, esta política
+          muda antes.
         </p>
         <p>
           Se houver um incidente de segurança que possa trazer risco ou dano a você, avisamos você e
           a Autoridade Nacional de Proteção de Dados (ANPD), como a lei exige, em prazo razoável. O
-          aviso diz o que aconteceu, quais dados foram afetados e o que estamos fazendo. Ele chega
-          pelo e-mail que você usar para entrar e também fica publicado neste site.
+          aviso diz o que aconteceu, quais dados foram afetados e o que estamos fazendo, e fica
+          publicado neste site.
         </p>
       </Secao>
 
@@ -238,26 +310,28 @@ export default function Privacidade() {
       </Secao>
 
       <Secao numero={6} titulo="Sua conta Garmin">
-        <p>Hoje não existe nenhuma conexão com a Garmin e nenhuma chave de acesso guardada.</p>
-        <AindaNaoAtivo />
         <p>
           Não pedimos a senha da sua conta Garmin. Usamos só uma chave de acesso, que a Garmin gera
           com a sua autorização.
         </p>
         <p>
-          Na primeira etapa, usada só pelo responsável pelo projeto, a chave pessoal fica num local
-          protegido da Cloudflare (o &ldquo;cofre de segredos&rdquo;) e nunca é gravada em banco de
-          dados, em registros de funcionamento ou em arquivos. Na etapa seguinte, com o botão
-          &ldquo;Conectar a Garmin&rdquo;, a chave de acesso fica guardada de forma protegida
-          (embaralhada, o que se chama criptografia) e é apagada quando você desconectar a Garmin. O
-          que acontece com o histórico está na <RefSecao numero={7} />.
+          Nesta fase, a chave pessoal do responsável pelo projeto fica num local protegido da
+          Cloudflare (o &ldquo;cofre de segredos&rdquo;), usado só pela rotina de sincronização, e
+          nunca é gravada em banco de dados, em registros de funcionamento ou em arquivos. O app não
+          consegue apagá-la sozinho: para desconectar, o responsável apaga a chave no site da
+          Garmin, o que a faz deixar de valer na hora, e a remove do cofre.
+        </p>
+        <AindaNaoAtivo />
+        <p>
+          Na etapa seguinte, com o botão &ldquo;Conectar a Garmin&rdquo;, a chave de acesso fica
+          guardada de forma protegida (embaralhada, o que se chama criptografia) e é apagada quando
+          você desconectar a Garmin. O que acontece com o histórico está na <RefSecao numero={7} />.
         </p>
       </Secao>
 
       <Secao numero={7} titulo="Seus direitos">
         <p>
-          Hoje o site não guarda dados seus, então não há o que apagar. Mesmo assim, os direitos
-          abaixo valem desde já. Para exercer qualquer um deles, escreva para{" "}
+          Os direitos abaixo valem desde já. Para exercer qualquer um deles, escreva para{" "}
           <a href={`mailto:${EMAIL_DE_CONTATO}`}>{EMAIL_DE_CONTATO}</a>. Quando você pedir por
           e-mail, respondemos em até 15 dias, ou antes, se a lei exigir prazo menor.
         </p>
@@ -280,10 +354,9 @@ export default function Privacidade() {
           Você também pode apresentar uma reclamação à Autoridade Nacional de Proteção de Dados
           (ANPD).
         </p>
-        <AindaNaoAtivo />
         <p>
-          Quando houver dados de saúde, você poderá ver, baixar e apagar tudo com um clique. Sair,
-          desconectar a Garmin e apagar a conta são três ações diferentes:
+          Sair, desconectar a Garmin e apagar a conta são três ações diferentes. As três ficam na
+          página &ldquo;Sua conta&rdquo;, dentro da área fechada:
         </p>
         <dl className="acoes">
           <div>
@@ -294,9 +367,13 @@ export default function Privacidade() {
             <dt>Desconectar a Garmin</dt>
             <dd>
               <p>
-                Interrompe a sincronização e apaga a chave de acesso, mas mantém o histórico que já
-                veio da Garmin, para você retomar de onde parou se reconectar. Para apagar esse
-                histórico, use &ldquo;Apagar minha conta&rdquo;.
+                Interrompe a sincronização e a chave de acesso deixa de valer, mas mantém o
+                histórico que já veio da Garmin, para você retomar de onde parou se reconectar. Para
+                apagar esse histórico, use &ldquo;Apagar minha conta&rdquo;.
+              </p>
+              <p>
+                Nesta fase, desconectar tem dois passos, feitos por você: apagar a chave no site da
+                Garmin e removê-la do cofre do app. A página &ldquo;Sua conta&rdquo; mostra como.
               </p>
               <p>
                 Se você tirar a permissão pelo site ou pelo app da Garmin, o efeito é o mesmo: param
@@ -305,8 +382,8 @@ export default function Privacidade() {
                 Garmin.
               </p>
               <p>
-                Na etapa seguinte (ainda não ativa), também avisaremos a Garmin de que você
-                desconectou.
+                Na etapa seguinte (ainda não ativa), desconectar será um botão, e também avisaremos
+                a Garmin de que você desconectou.
               </p>
             </dd>
           </div>
@@ -314,12 +391,16 @@ export default function Privacidade() {
             <dt>Apagar minha conta</dt>
             <dd>
               <p>
-                Apaga todos os seus dados no app, na hora. Não dá para desfazer; por isso, antes de
-                apagar, você poderá baixar uma cópia dos seus dados.
+                Apaga todos os seus dados no app, na hora. Não dá para desfazer. Para apagar, a
+                chave da Garmin tem de já ter saído do cofre do app; senão, o app voltaria a buscar
+                os dados.
               </p>
               <p>
-                Cópias de segurança mantidas pela infraestrutura podem levar até 7 dias para sumir
-                por completo; elas não são usadas para nenhuma outra finalidade.
+                O que não é apagado: o que está na própria Garmin; os registros de entrada do
+                Cloudflare Access, que somem em 24 horas; os registros da sincronização, que somem
+                em até 3 dias e são feitos para não levar dados de saúde; e as cópias de segurança
+                mantidas pela infraestrutura, que podem levar até 7 dias para sumir por completo e
+                não são usadas para nenhuma outra finalidade.
               </p>
               <p>
                 Apagar a conta também revoga o seu consentimento: paramos de usar os seus dados.
@@ -333,12 +414,20 @@ export default function Privacidade() {
           &ldquo;Apagar minha conta&rdquo;: apagamos tudo no app em até 15 dias e avisamos você por
           e-mail quando terminar.
         </p>
+        <AindaNaoAtivo />
+        <p>
+          Na etapa seguinte, você poderá ver e baixar uma cópia de todos os seus dados com um
+          clique, inclusive antes de apagar a conta.
+        </p>
       </Secao>
 
       <Secao numero={8} titulo="Compartilhamento">
         <p>
-          Nada é vendido, compartilhado ou usado para publicidade. Hoje, os dados técnicos da
-          conexão passam apenas pela Cloudflare, que hospeda o site em nosso nome.
+          Nada é vendido, compartilhado ou usado para publicidade. Os seus dados de saúde passam
+          apenas pela Cloudflare, que hospeda o site, guarda os dados e controla a entrada na área
+          fechada em nosso nome. O login da área fechada pode ser feito com uma conta Google; nesse
+          caso, o Google fica sabendo de cada entrada, mas não recebe dados de saúde. O app só pede
+          dados à Garmin; não envia dados seus para ela.
         </p>
         <AindaNaoAtivo />
         <p>

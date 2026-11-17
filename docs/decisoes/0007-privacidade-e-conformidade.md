@@ -21,12 +21,12 @@ O projeto é fechado e não comercial. Quando o dono avisar que vai virar comerc
 Publicada em `/privacidade` (issue #4, 15/11/2026), antes do pedido do Starter. Texto curto, em linguagem simples, com estas 10 seções. O texto diz só a verdade da etapa atual: o site não coleta dados do visitante, e tudo que depende do conector Garmin vem marcado "Ainda não ativo", descrevendo o compromisso. **Antes de qualquer dado real entrar, a política é atualizada, com nova data.**
 
 1. Quais dados: atividades, FC, HRV, sono, estresse e perfil de treino vindos da Garmin. Sem senha, nome completo ou GPS na etapa 1. Também o e-mail usado para entrar, só para avisos sobre a conta (issue #21).
-2. Para quê e por quanto tempo: só calcular e explicar as métricas do próprio atleta. Nada é vendido, compartilhado ou usado para publicidade. Os dados ficam até o atleta apagar a conta ou até 24 meses sem uso ("uso" é entrar no app; a sincronização automática não conta), com aviso por e-mail antes (revisão de 15/11/2026, issue #21). Desconectar a Garmin não apaga o histórico.
+2. Para quê e por quanto tempo: só calcular e explicar as métricas do próprio atleta. Nada é vendido, compartilhado ou usado para publicidade. Os dados ficam até o atleta apagar a conta ou até 24 meses sem uso ("uso" é entrar no app; a sincronização automática não conta), com aviso por e-mail antes (revisão de 15/11/2026, issue #21). **Ajustado em 17/11/2026 (#29):** na etapa 1, só até apagar a conta; 24 meses e aviso por e-mail são etapa 2. Desconectar a Garmin não apaga o histórico.
 3. Base legal: **consentimento específico e destacado** (LGPD, dado de saúde é dado sensível), em tela própria no primeiro acesso.
 4. Onde ficam e como são protegidos: Cloudflare, possivelmente fora do Brasil (transferência internacional informada). Como são protegidos e como o titular é avisado de incidente de segurança (LGPD, art. 48).
 5. IA: Workers AI recebe só números calculados, sem nome nem e-mail.
-6. Credenciais Garmin: na etapa 1, no cofre; na etapa 2, token criptografado apagado ao desconectar a Garmin (o histórico já importado fica).
-7. Direitos: lista do art. 18 da LGPD; ver, baixar e apagar tudo com um clique; revogar na Garmin. "Apagar minha conta" apaga tudo no app na hora e equivale a revogar o consentimento; prazo de resposta de 15 dias para pedidos por e-mail; frase dos menores de 18 anos (issue #21). Cópias técnicas de segurança levam até 7 dias para sumir (revisão de 16/11/2026, issue #5; antes dizia 30).
+6. Credenciais Garmin: na etapa 1, no cofre; na etapa 2, token criptografado apagado ao desconectar a Garmin (o histórico já importado fica). **Ajustado em 17/11/2026 (#22 e #29):** na etapa 1, o dono apaga a chave no Garmin Connect e no cofre; o app não apaga o segredo.
+7. Direitos: lista do art. 18 da LGPD; ver, baixar e apagar tudo com um clique (**ajustado em 17/11/2026, #29:** apagar existe em `/app/conta`; ver e baixar são etapa 2); revogar na Garmin. "Apagar minha conta" apaga tudo no app na hora e equivale a revogar o consentimento; prazo de resposta de 15 dias para pedidos por e-mail; frase dos menores de 18 anos (issue #21). Cópias técnicas de segurança levam até 7 dias para sumir (revisão de 16/11/2026, issue #5; antes dizia 30).
 8. Compartilhamento: cards só saem quando o atleta decide.
 9. Aviso de responsabilidade: o app descreve e estima, não recomenda treino e não substitui profissional.
 10. Contato do responsável (e-mail do projeto, `souatletaapp@gmail.com`) e data da última atualização.
@@ -91,6 +91,7 @@ Pendências que seguem para a revisão por advogado (#17) ou para a etapa 2: se 
 - Aviso por e-mail antes de apagar por inatividade, e o e-mail guardado só para avisos da conta (inclusive no consentimento).
 - Revisão por advogado (#17).
 - Reler o acordo da Garmin vigente no pedido do Starter.
+- **Antes de guardar arquivos .FIT (R2):** a política muda antes, porque eles trazem o trajeto de GPS e hoje a política diz que o app não guarda GPS (revisão jurídica do PR #42).
 
 ## Revisão de 16/11/2026 (issue #5)
 
@@ -143,3 +144,18 @@ Especificação aprovada pelo dono em 16/11/2026. A tela é `/app/conta`, atrás
 - A tela mostra, para o passo de remover o segredo, os comandos só num bloco "Detalhes técnicos": na etapa 1 quem faz é o dono; na etapa 2 vira botão e os comandos somem.
 - Limite conhecido (achado B4): o resultado vem na URL (`?apagar=`), então um link forjado mostraria a mensagem "Pronto" sem apagar nada. É só engano visual; app de um usuário só.
 - Arquivos no R2 ainda não existem; quando entrarem, entram na lista de apagar.
+
+## Revisão de 17/11/2026 (issue #29): política para o conector ativo
+
+Especificação aprovada pelo dono em 17/11/2026 (D1 a D7). A política em `/privacidade` diz a verdade da etapa 1: o único usuário é o responsável pelo projeto, com os próprios dados.
+
+- **D1. Consentimento:** na etapa 1 não há tela de consentimento; a política diz isso. A tela própria entra antes de qualquer outra pessoa usar o app (etapa 2). O alcance da LGPD no uso particular do próprio dono (art. 4º, I) segue para o advogado (#17).
+- **D2. Retenção:** os dados ficam até "Apagar minha conta". "24 meses sem uso" e os avisos por e-mail são etapa 2 ("Ainda não ativo"). O app não guarda o e-mail de quem entra.
+- **D3. Cloudflare Access:** a política diz que cada entrada na área fechada é registrada (e-mail, IP e país). A documentação de logs do Zero Trust (conferida em 17/11/2026) dá 24 horas no plano gratuito.
+- **D4. Local do banco:** o D1 não tem dica de localização para a América do Sul. O banco é criado com `--location enam` (leste da América do Norte); a política diz "fora do Brasil, na América do Norte" e chama isso de transferência internacional. A base jurídica (arts. 33 a 36) segue para o advogado (#17).
+- **D5.** Desconectar e Apagar descritos como a #22 fez; "ver e baixar" é etapa 2.
+- **D6.** `POLITICA_REVISTA` passou a `"sim"` neste PR; a data da política é 17/11/2026.
+- **D7.** Uma rodada de revisão por agente jurídico (exceção à economia de tokens).
+- **Teste novo:** toda coluna da migração tem frase na seção 1 da política (`paginas.test.tsx`). Coluna nova sem frase quebra o CI: dado novo precisa entrar na política antes.
+- A lista "Pendências para o PR da política", acima, foi atendida, com estas exceções: a explicação completa do login pelo Google (#16; a política já diz que o Google vê cada entrada e não recebe dados de saúde), os pontos do advogado (#17) e a unificação dos nomes dos registros ("de funcionamento", "de eventos técnicos", "de entrada"), feita só em parte.
+- **Ajustes da revisão jurídica do PR #42 (17/11/2026):** login pelo Google citado nas seções 1 e 8; "feitos para não levar dados de saúde" no lugar de "sem dados de saúde"; base legal da etapa 1 (decisão do próprio titular) e revogação valendo já; local do banco "na América do Norte, país escolhido pela Cloudflare"; 90 dias; VO2max explicado; condição exata para apagar (chave fora do cofre). Itens 5 e 6 dos termos da Garmin respondidos "não sei" na #5 e levados à #17, com o prazo de incidente, o direito de oposição e o GPS dos .FIT.
