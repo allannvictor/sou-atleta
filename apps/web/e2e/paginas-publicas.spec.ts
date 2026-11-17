@@ -142,12 +142,12 @@ test.describe("navegação", () => {
     const principal = page.getByRole("main");
     await expect(principal.getByText("Só encerra a sua sessão. Nunca apaga dados.")).toBeVisible();
     await expect(
-      principal.getByText(/Interrompe a sincronização e apaga a chave de acesso/),
+      principal.getByText(/Interrompe a sincronização e a chave de acesso deixa de valer/),
     ).toBeVisible();
     await expect(principal.getByText(/Apaga todos os seus dados no app, na hora/)).toBeVisible();
     await expect(principal.getByText(/podem levar até 7 dias para sumir/)).toBeVisible();
     await expect(principal.getByText(/Nada disso apaga algo na Garmin/)).toBeVisible();
-    await expect(principal.getByText(/até 24 meses sem uso/).first()).toBeVisible();
+    await expect(principal.getByText(/depois de 24 meses sem uso/).first()).toBeVisible();
     await expect(
       principal.getByText("Se soubermos que alguém com menos de 18 anos se cadastrou", {
         exact: false,
@@ -161,7 +161,7 @@ test.describe("navegação", () => {
     ).toBeVisible();
     await expect(principal.getByText(/Também avisamos a Garmin/i)).toHaveCount(0);
     await expect(
-      principal.getByText(/Na etapa seguinte \(ainda não ativa\), também avisaremos a Garmin/),
+      principal.getByText(/desconectar será um botão, e também avisaremos a Garmin/),
     ).toBeVisible();
     await expect(principal.getByText(/desconectar ou sair/i)).toHaveCount(0);
   });

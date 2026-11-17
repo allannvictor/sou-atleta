@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
@@ -16,6 +18,25 @@ const PALAVRAS_PROIBIDAS = [/improdutiv/i, /\bruim\b/i, /\bvoc[êe] deve\b/i, /\
 describe("política de privacidade", () => {
   const marcacao = html(<Privacidade />);
   const texto = textoVisivel(marcacao);
+  /** Texto visível de uma seção (`numero` de 1 a 10). */
+  const secao = (numero: number) => {
+    const inicio = marcacao.indexOf(`id="secao-${String(numero)}"`);
+    const fim =
+      numero === 10 ? marcacao.length : marcacao.indexOf(`id="secao-${String(numero + 1)}"`);
+    return textoVisivel(marcacao.slice(inicio, fim));
+  };
+  const resumo = marcacao.slice(
+    marcacao.indexOf('class="resumo"'),
+    marcacao.indexOf('id="secao-1"'),
+  );
+  /** O trecho aparece só depois da etiqueta "Ainda não ativo" daquela seção. */
+  const soNoFuturo = (trechoDaSecao: string, trecho: RegExp) => {
+    const etiqueta = trechoDaSecao.indexOf("Ainda não ativo");
+    const achado = trechoDaSecao.search(trecho);
+    expect(achado, String(trecho)).toBeGreaterThan(-1);
+    expect(etiqueta, "etiqueta Ainda não ativo").toBeGreaterThan(-1);
+    expect(achado, String(trecho)).toBeGreaterThan(etiqueta);
+  };
 
   it("tem as 10 seções da decisão 0007, em ordem", () => {
     const titulos = [...marcacao.matchAll(/<h2 id="secao-(\d+)">(\d+)\. ([^<]+)<\/h2>/g)];
@@ -45,6 +66,11 @@ describe("política de privacidade", () => {
     expect(marcacao).toContain(`<time dateTime="${POLITICA_ATUALIZADA_EM.iso}">`);
   });
 
+  it("a data da política é a da revisão do conector ativo (issue #29)", () => {
+    expect(POLITICA_ATUALIZADA_EM.iso).toBe("2026-11-17");
+    expect(texto).toContain("17 de novembro de 2026");
+  });
+
   it("diz a idade mínima (18 anos ou mais), apaga os dados de menores e diz como avisar", () => {
     expect(texto).toContain("pessoas com 18 anos ou mais");
     expect(texto).not.toContain("maiores de 18");
@@ -56,16 +82,236 @@ describe("política de privacidade", () => {
     );
   });
 
-  it("separa sair, desconectar a Garmin e apagar a conta (issue #21)", () => {
+  it("diz a verdade da etapa 1: só o responsável pelo projeto, com os próprios dados de saúde", () => {
+    expect(texto).toMatch(/não coleta dados de quem o visita/);
+    expect(texto).toMatch(/não define cookies e não tem rastreadores nem análise de uso/);
+    expect(texto).toMatch(/trata dados de saúde de uma única pessoa: o responsável pelo projeto/);
+    expect(texto).toMatch(/Mais ninguém usa o app nesta fase/);
+  });
+
+  it("não traz mais frases que ficaram falsas com o conector ativo", () => {
+    for (const falsa of [
+      /ainda não trata dados de saúde/,
+      /ainda não está conectado/,
+      /não há o que apagar/,
+      /não guarda dados seus/,
+      /Hoje não existe nenhuma conexão com a Garmin/,
+      /atividades de corrida/,
+      /30 dias/,
+    ]) {
+      expect(texto).not.toMatch(falsa);
+    }
+  });
+
+  it("lista os dados que vêm da Garmin, de todas as modalidades, e o que não guarda", () => {
+    const s1 = secao(1);
+    for (const dado of [
+      /atividades de todas as modalidades/,
+      /data e hora de início, tipo, duração, distância/,
+      /se a FC veio do pulso ou de uma cinta/,
+      /tempo em cada zona de FC, VO2max \(a estimativa da Garmin/,
+      /e Training Effect/,
+      /variabilidade da frequência cardíaca \(HRV\) da noite/,
+      /sono: tempo total, tempo em cada fase e tempo acordado/,
+      /FC de repouso \(e se veio do pulso ou de uma cinta\), estresse e Body\s+Battery/,
+      /zonas de FC de cada esporte, o método e os valores usados para elas/,
+      /sistema de medidas, fuso horário e dias preferidos/,
+      /revelam a região aproximada/,
+      /não guarda o trajeto de GPS, a localização exata, o seu nome, o seu e-mail, a sua foto, a senha da Garmin nem a chave de acesso/,
+      /informações técnicas da própria sincronização/,
+      /só os últimos 90 dias/,
+      /só quando você abre o app ou toca em “Atualizar agora”/,
+    ]) {
+      expect(s1).toMatch(dado);
+    }
+  });
+
+  it("toda coluna de dado das migrações aparece na seção 1 (dado novo precisa entrar na política)", () => {
+    const pasta = new URL("../../../../packages/db/migrations/", import.meta.url);
+    const sql = readFileSync(new URL("0000_inicial.sql", pasta), "utf8");
+    const colunas = [...sql.matchAll(/CREATE TABLE `(\w+)` \(([\s\S]*?)\n\);/g)].flatMap(
+      ([, tabela, corpo]) =>
+        [...(corpo ?? "").matchAll(/^\s*`(\w+)`/gm)].map(
+          ([, coluna]) => `${tabela ?? ""}.${coluna ?? ""}`,
+        ),
+    );
+    expect(colunas.length).toBeGreaterThan(40);
+    const tecnica = /informações técnicas da própria sincronização/;
+    // Onde cada coluna aparece na seção 1. Colunas de controle (id, fonte, horários de gravação)
+    // são a parte "informações técnicas".
+    const ondeAparece: Record<string, RegExp> = {
+      id: tecnica,
+      fonte: tecnica,
+      atualizado_em: tecnica,
+      data: /da noite|sono:|resumo do dia/,
+      data_local: /data e hora de início/,
+      inicio_local: /data e hora de início/,
+      inicio_gmt: /data e hora de início/,
+      tipo: /tipo, duração/,
+      duracao_s: /duração/,
+      distancia_m: /distância/,
+      fc_media: /\(FC\) média e máxima/,
+      fc_maxima: /\(FC\) média e máxima|FC máxima/,
+      fc_origem: /se a FC veio do pulso ou de uma cinta/,
+      fc_origem_conferida: /se a FC veio do pulso ou de uma cinta/,
+      tempo_zona1_s: /tempo em cada zona de FC/,
+      tempo_zona2_s: /tempo em cada zona de FC/,
+      tempo_zona3_s: /tempo em cada zona de FC/,
+      tempo_zona4_s: /tempo em cada zona de FC/,
+      tempo_zona5_s: /tempo em cada zona de FC/,
+      vo2max: /VO2max/,
+      efeito_aerobico: /Training Effect/,
+      efeito_anaerobico: /Training Effect/,
+      hrv_noite_ms: /\(HRV\) da noite/,
+      hrv_semana_ms: /e da semana/,
+      hrv_pico_5min_ms: /o maior valor em 5 minutos/,
+      estado: /o estado dela segundo a Garmin/,
+      sono_s: /sono: tempo total/,
+      profundo_s: /tempo em cada fase/,
+      leve_s: /tempo em cada fase/,
+      rem_s: /tempo em cada fase/,
+      acordado_s: /tempo acordado/,
+      fc_repouso: /FC de repouso/,
+      fc_repouso_origem: /FC de repouso \(e se veio do pulso ou de uma cinta\)/,
+      estresse_medio: /estresse/,
+      estresse_maximo: /estresse/,
+      body_battery_min: /Body\s+Battery/,
+      body_battery_max: /Body\s+Battery/,
+      body_battery_carregada: /Body\s+Battery/,
+      body_battery_drenada: /Body\s+Battery/,
+      body_battery_fim_do_dia: /Body\s+Battery/,
+      esporte: /zonas de FC de cada esporte/,
+      metodo: /o método/,
+      fc_limiar: /de limiar/,
+      zona1_piso: /zonas de FC de cada esporte/,
+      zona2_piso: /zonas de FC de cada esporte/,
+      zona3_piso: /zonas de FC de cada esporte/,
+      zona4_piso: /zonas de FC de cada esporte/,
+      zona5_piso: /zonas de FC de cada esporte/,
+      sistema_de_medidas: /sistema de medidas/,
+      fuso_horario: /fuso horário/,
+      dias_disponiveis: /dias preferidos para treinar/,
+      dias_longos: /para treinos longos/,
+      fluxo: /até que dia os dados já vieram/,
+      inicio: /até que dia os dados já vieram/,
+      importado_ate: /até que dia os dados já vieram/,
+      historico_completo: /até que dia os dados já vieram/,
+      verificado_em: /quando ela rodou/,
+      status_da_chave: /códigos curtos de erro/,
+      chave_vence_em: /a data de vencimento da chave/,
+      erro_codigo: /códigos curtos de erro/,
+      ultima_execucao_em: /quando ela rodou/,
+      ultimo_sucesso_em: /quando ela rodou/,
+      pausa_ate: /quando ela rodou/,
+      falhas_de_limite_seguidas: /códigos curtos de erro/,
+      itens_ignorados: /códigos curtos de erro/,
+      trava_ate: /quando ela rodou/,
+    };
+    const s1 = secao(1);
+    for (const coluna of colunas) {
+      const nome = coluna.split(".")[1] ?? "";
+      const padrao = ondeAparece[nome];
+      expect(padrao, `coluna ${coluna} sem frase na política`).toBeDefined();
+      if (padrao !== undefined) expect(s1, coluna).toMatch(padrao);
+    }
+  });
+
+  it("o e-mail para avisos e os 24 meses sem uso são etapa futura", () => {
+    soNoFuturo(
+      secao(1),
+      /guardaremos o e-mail que você usar para entrar, só para avisos sobre a sua conta/,
+    );
+    expect(secao(1)).toMatch(/Não usamos esse e-mail para publicidade/);
+    expect(secao(2)).toMatch(/Seus dados ficam guardados até você usar “Apagar minha conta”\./);
+    soNoFuturo(secao(2), /24 meses sem uso/);
+    soNoFuturo(secao(2), /avisaremos você por e-mail/);
+  });
+
+  it("base legal: sem tela de consentimento na etapa 1; ela vem antes de qualquer outra pessoa", () => {
+    expect(secao(3)).toMatch(
+      /Ainda não existe tela de consentimento, porque ninguém mais usa o app/,
+    );
+    soNoFuturo(secao(3), /consentimento específico e destacado/);
+    soNoFuturo(secao(3), /Antes de qualquer outra pessoa usar o app/);
+    expect(secao(3)).toMatch(/o tratamento acontece por decisão do próprio titular/);
+    expect(texto).toMatch(/Você pode revogar \(retirar\) essa decisão a qualquer momento/);
+    expect(texto).toMatch(/Se você revogar, paramos de usar os seus dados e apagamos a sua conta/);
+  });
+
+  it("diz onde os dados ficam: fora do Brasil, na América do Norte (transferência internacional)", () => {
+    expect(secao(4)).toMatch(/fora do Brasil/);
+    expect(secao(4)).toMatch(/na América do Norte\. O país exato é escolhido pela\s+Cloudflare/);
+    expect(secao(4)).toMatch(/transferência internacional de dados/);
+  });
+
+  it("registros da sincronização: eventos, por 3 dias, sem segredo nem saúde", () => {
+    expect(texto).toMatch(/Registros de funcionamento da sincronização\./);
+    expect(texto).toMatch(
+      /guarda registros de funcionamento no serviço de registros da Cloudflare, por 3 dias/,
+    );
+    expect(texto).toMatch(/dizem só o que aconteceu/);
+    expect(texto).toMatch(/um pedaço dos seus dados chegou da Garmin/);
+    expect(texto).toMatch(
+      /Nunca levam a sua chave de acesso, a autorização temporária que a Garmin entrega em troca dela, nem dados de saúde/,
+    );
+    expect(texto).toMatch(/a própria Cloudflare também pode registrá-lo/);
+    expect(texto).toMatch(/o site que você vê continua sem registros/);
+    expect(resumo).toMatch(/registros de eventos técnicos, por 3\s+dias/);
+    expect(resumo).toContain('href="#secao-4"');
+  });
+
+  it("registros de entrada do Cloudflare Access: e-mail, IP e país, por 24 horas", () => {
+    expect(texto).toMatch(
+      /O Cloudflare Access registra cada entrada na área fechada: o e-mail, o endereço de internet \(IP\) e o país/,
+    );
+    expect(texto).toMatch(/guarda esses registros por 24 horas/);
+    expect(resumo).toMatch(/cada entrada, por 24 horas/);
+  });
+
+  it("diz que o login pode ser pelo Google, que vê a entrada mas não recebe dados de saúde", () => {
+    expect(secao(1)).toMatch(/conta Google ou um código enviado por e-mail/);
+    expect(secao(8)).toMatch(
+      /o Google fica sabendo de cada entrada, mas não recebe dados de saúde/,
+    );
+    expect(texto).not.toMatch(/Os dados passam apenas pela Cloudflare/);
+  });
+
+  it("não afirma de forma absoluta que os registros não têm dados de saúde", () => {
+    expect(resumo).toMatch(/feitos para não levar dados de saúde/);
+    expect(texto).not.toMatch(/sem dados de saúde/);
+    expect(texto).not.toMatch(/não têm dados de saúde/);
+  });
+
+  it("os prazos valem no plano gratuito; mudar de plano muda a política antes", () => {
+    expect(texto).toMatch(
+      /valem no plano gratuito da Cloudflare, que o projeto usa\. Se o plano mudar, esta política muda antes/,
+    );
+  });
+
+  it("diz que os registros de funcionamento do site estão desligados", () => {
+    expect(texto).toMatch(/registros de\s+funcionamento desligados/);
+    expect(texto).toMatch(/o projeto não guarda registros de\s+quem o visita/);
+  });
+
+  it("separa sair, desconectar a Garmin e apagar a conta, na página Sua conta", () => {
     expect(texto).toMatch(/Sair Só encerra a sua sessão\. Nunca apaga dados\./);
     expect(texto).toMatch(
-      /Desconectar a Garmin Interrompe a sincronização e apaga a chave de acesso, mas mantém o histórico que já veio da Garmin, para você retomar de onde parou se reconectar/,
+      /Desconectar a Garmin Interrompe a sincronização e a chave de acesso deixa de valer, mas mantém o histórico que já veio da Garmin, para você retomar de onde parou se reconectar/,
     );
     expect(texto).toMatch(/Apagar minha conta Apaga todos os seus dados no app, na hora\./);
-    // A frase antiga misturava sair e desconectar e prometia apagar tudo.
+    expect(texto).toMatch(/As três ficam na página “Sua conta”, dentro da área fechada/);
     expect(texto).not.toMatch(/desconectar ou sair/i);
-    expect(texto).not.toMatch(/apagada quando você desconectar\b(?! a Garmin)/);
-    expect(texto).not.toMatch(/apagamos seus dados do app imediatamente/);
+  });
+
+  it("desconectar, na etapa 1, são dois passos feitos pelo responsável", () => {
+    expect(texto).toMatch(
+      /Nesta fase, desconectar tem dois passos, feitos por você: apagar a chave no site da Garmin e removê-la do cofre do app/,
+    );
+    expect(texto).toMatch(/O app não consegue apagá-la sozinho/);
+    expect(texto).toMatch(
+      /Na etapa seguinte \(ainda não ativa\), desconectar será um botão, e também avisaremos a Garmin de que você desconectou/,
+    );
+    expect(texto).not.toMatch(/Também avisamos a Garmin/i);
   });
 
   it("quem desconecta fica sabendo como apagar o histórico", () => {
@@ -79,14 +325,22 @@ describe("política de privacidade", () => {
     expect(texto).toMatch(
       /Isso não é uma ação do Sou Atleta: é uma configuração que fica na sua conta Garmin/,
     );
-    expect(texto).not.toMatch(/revogar o acesso na própria Garmin/);
   });
 
-  it("não afirma no presente que a Garmin é avisada: é etapa futura", () => {
-    expect(texto).not.toMatch(/Também avisamos a Garmin/i);
+  it("apagar exige a Garmin desconectada e diz o que não é apagado, com os prazos", () => {
     expect(texto).toMatch(
-      /Na etapa seguinte \(ainda não ativa\), também avisaremos a Garmin de que você desconectou/,
+      /Apaga todos os seus dados no app, na hora\. Não dá para desfazer\. Para apagar, a chave da Garmin tem de já ter saído do cofre do app/,
     );
+    expect(texto).toMatch(/os registros de entrada do Cloudflare Access, que somem em 24 horas/);
+    expect(texto).toMatch(
+      /os registros da sincronização, que somem em até 3 dias e são feitos para não levar dados de saúde/,
+    );
+    expect(texto).toMatch(/podem levar até 7 dias para sumir por completo/);
+  });
+
+  it("ver e baixar os dados é etapa futura (não é prometido antes de apagar hoje)", () => {
+    soNoFuturo(secao(7), /você poderá ver e baixar uma cópia de todos os seus dados/);
+    expect(texto).not.toMatch(/por isso, antes de apagar, você poderá baixar/);
   });
 
   it("deixa claro que nada é apagado na Garmin: o app só guarda uma cópia", () => {
@@ -95,25 +349,7 @@ describe("política de privacidade", () => {
     );
   });
 
-  it("diz que os dados ficam até apagar a conta ou 24 meses sem uso, e que uso é entrar no app", () => {
-    expect(texto).toMatch(
-      /Seus dados ficam guardados até você usar “Apagar minha conta” ou até 24 meses sem uso/,
-    );
-    expect(texto).toContain("Conta como uso entrar no app; a sincronização automática não conta.");
-    expect(texto).toMatch(/Antes de apagar por falta de uso, avisamos você por e-mail/);
-    expect(texto).not.toMatch(/ficam guardados enquanto a sua conta estiver conectada/);
-  });
-
-  it("cita o e-mail usado para entrar, só para avisos sobre a conta", () => {
-    expect(texto).toMatch(
-      /guardaremos o e-mail que você usar para entrar, só para avisos sobre a sua conta/,
-    );
-    expect(texto).toMatch(/Não usamos esse e-mail para publicidade/);
-  });
-
-  it("revogar o consentimento apaga a conta, e o pedido por e-mail é tratado como apagar a conta", () => {
-    expect(texto).toMatch(/Você pode revogar \(retirar\) o seu consentimento a qualquer momento/);
-    expect(texto).toMatch(/Se você revogar, paramos de usar os seus dados e apagamos a sua conta/);
+  it("o pedido por e-mail é tratado como apagar a conta", () => {
     expect(texto).toMatch(
       /Se você pedir por e-mail para revogar o consentimento ou o acesso, tratamos o pedido como “Apagar minha conta”: apagamos tudo no app em até 15 dias e avisamos você por e-mail quando terminar/,
     );
@@ -123,44 +359,6 @@ describe("política de privacidade", () => {
     expect(texto).toContain(
       "Quando você pedir por e-mail, respondemos em até 15 dias, ou antes, se a lei exigir prazo menor.",
     );
-    expect(texto).not.toMatch(/Respondemos nos prazos que a lei prevê/);
-  });
-
-  it("apagar a conta apaga no app, na hora, e a ressalva das cópias de segurança (até 7 dias) vem junto", () => {
-    expect(texto).not.toMatch(/apagamos todos os seus dados imediatamente/);
-    expect(texto).toMatch(
-      /Apaga todos os seus dados no app, na hora\. Não dá para desfazer; por isso, antes de apagar, você poderá baixar uma cópia dos seus dados\. Cópias de segurança mantidas pela infraestrutura podem levar até 7 dias para sumir por completo/,
-    );
-    expect(texto).not.toMatch(/prazo exato será\s+informado/);
-  });
-
-  it("cópias de segurança somem em até 7 dias (plano gratuito do D1), não mais 30", () => {
-    expect(texto).toMatch(/podem levar até 7 dias para sumir por completo/);
-    expect(texto).not.toMatch(/30 dias/);
-  });
-
-  it("diz que só a rotina de sincronização guarda registros: eventos, por 3 dias, sem segredo nem saúde", () => {
-    expect(texto).toMatch(/Registros de funcionamento da sincronização\./);
-    expect(texto).toMatch(
-      /guardar registros de funcionamento no serviço de registros da Cloudflare, por 3 dias/,
-    );
-    expect(texto).toMatch(/dizem só o que aconteceu/);
-    expect(texto).toMatch(
-      /Nunca levam a sua chave de acesso, a autorização temporária que a Garmin entrega em troca dela, nem dados de saúde/,
-    );
-    expect(texto).toMatch(/o site que você vê continua sem registros/);
-    // O Resumo avisa, com link para a seção 4.
-    const resumo = marcacao.slice(
-      marcacao.indexOf('class="resumo"'),
-      marcacao.indexOf('id="secao-1"'),
-    );
-    expect(resumo).toMatch(/registros de eventos técnicos, por 3 dias/);
-    expect(resumo).toContain('href="#secao-4"');
-  });
-
-  it("a data da política é a desta revisão (16 de novembro de 2026)", () => {
-    expect(POLITICA_ATUALIZADA_EM.iso).toBe("2026-11-16");
-    expect(texto).toContain("16 de novembro de 2026");
   });
 
   it("explica os termos difíceis na primeira vez em que aparecem", () => {
@@ -173,22 +371,20 @@ describe("política de privacidade", () => {
       texto.search(/chave de acesso \(a autorização que a Garmin deu ao app, sem a sua senha\)/),
     );
     expect(texto).not.toMatch(/importado/i);
+    expect(texto).not.toMatch(/\blote\b/);
   });
 
-  it("traz no Resumo o quadro das três ações, com link para a seção 7", () => {
-    const resumo = marcacao.slice(
-      marcacao.indexOf('class="resumo"'),
-      marcacao.indexOf('id="secao-1"'),
-    );
+  it("traz no Resumo o quadro das três ações, sem 'Ainda não ativo', com link para a seção 7", () => {
     expect(resumo).toContain('href="#secao-7"');
     expect(resumo).toContain("<dt>Sair</dt>");
     expect(resumo).toContain("<dt>Desconectar a Garmin</dt>");
     expect(resumo).toContain("<dt>Apagar minha conta</dt>");
+    expect(resumo).not.toContain('class="etiqueta"');
   });
 
   it("usa links nas referências a outras seções", () => {
     expect(texto).not.toMatch(/\bseções? \d/);
-    for (const n of [5, 6, 7]) {
+    for (const n of [1, 4, 5, 6, 7]) {
       expect(marcacao).toContain(`href="#secao-${String(n)}"`);
     }
   });
@@ -196,17 +392,6 @@ describe("política de privacidade", () => {
   it("usa o mesmo par de nomes: Conectar a Garmin e Desconectar a Garmin", () => {
     expect(texto).toContain("“Conectar a Garmin”");
     expect(texto).not.toMatch(/Conectar com Garmin/);
-  });
-
-  it("diz a verdade da etapa 1: sem coleta de visitante, sem cookies nas páginas públicas, sem dados de saúde", () => {
-    expect(texto).toMatch(/não coleta dados de quem o visita/);
-    expect(texto).toMatch(/não define cookies e não tem rastreadores nem análise de uso/);
-    expect(texto).toMatch(/ainda não trata dados de saúde/);
-  });
-
-  it("diz que os registros de funcionamento do site estão desligados", () => {
-    expect(texto).toMatch(/registros de\s+funcionamento desligados/);
-    expect(texto).toMatch(/o projeto não guarda registros de quem o visita/);
   });
 
   it("lista os direitos do artigo 18 da LGPD e a reclamação à ANPD", () => {
@@ -229,9 +414,8 @@ describe("política de privacidade", () => {
     expect(lista?.[1]?.match(/<li>/g) ?? []).toHaveLength(9);
   });
 
-  it("diz por quanto tempo os dados ficam, como são protegidos e como o titular é avisado de incidente", () => {
-    expect(texto).toMatch(/Seus dados ficam guardados até você usar/);
-    expect(texto).toMatch(/Como vamos protegê-los/);
+  it("diz como os dados são protegidos e como o titular é avisado de incidente", () => {
+    expect(texto).toMatch(/Como os protegemos/);
     expect(texto).toMatch(
       /incidente de segurança que possa trazer risco ou dano a você, avisamos você e a Autoridade Nacional/,
     );
@@ -241,7 +425,6 @@ describe("política de privacidade", () => {
     expect(texto).not.toMatch(/\btokens?\b/i);
     expect(texto).not.toMatch(/\blogs?\b/i);
     expect(texto).not.toMatch(/criptografad/i);
-    // "criptografia" só aparece explicada em palavras simples.
     expect(texto).toMatch(/embaralhada, o que se chama criptografia/);
   });
 
@@ -249,10 +432,11 @@ describe("política de privacidade", () => {
     expect(texto).toMatch(/só nessa área,\s+um cookie de sessão/);
   });
 
-  it("marca como 'Ainda não ativo' as partes que dependem do conector Garmin", () => {
+  it("marca como 'Ainda não ativo' só o que continua futuro", () => {
     const marcas = marcacao.match(/<p class="etiqueta">Ainda não ativo</g) ?? [];
-    // Resumo (quadro das três ações) e seções 1, 2, 3, 4, 5, 6, 7 e 8.
-    expect(marcas).toHaveLength(9);
+    // Seções 1 (e-mail), 2 (24 meses), 3 (consentimento), 5 (IA), 6 (etapa 2), 7 (ver e baixar) e 8 (cards).
+    expect(marcas).toHaveLength(7);
+    expect(secao(4)).not.toContain("Ainda não ativo");
   });
 
   it("a etiqueta 'Ainda não ativo' diz ao leitor de tela até onde vale", () => {
@@ -261,10 +445,9 @@ describe("política de privacidade", () => {
     );
   });
 
-  it("mantém o compromisso da IA, da chave Garmin e do consentimento", () => {
+  it("mantém o compromisso da IA e da chave Garmin", () => {
     expect(texto).toMatch(/sem seu nome nem\s+seu e-mail/);
     expect(texto).toMatch(/nunca é gravada em banco de\s+dados/);
-    expect(texto).toMatch(/consentimento específico e destacado/);
   });
 
   it("não identifica o responsável por nome (decisão do dono)", () => {
