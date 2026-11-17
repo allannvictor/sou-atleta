@@ -8,6 +8,7 @@ describe("ehRotaFechada", () => {
     "/app",
     "/app/",
     "/app/qualquer/coisa",
+    "/app/conta",
     "/App",
     "/APP/x",
     "//app",

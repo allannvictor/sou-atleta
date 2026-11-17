@@ -31,5 +31,6 @@ Situação: **planejado**, salvo onde estiver marcado **no ar** ou **implementad
 
 - **Conexão Garmin:** etapa 1 com a chave do dono no cofre; etapa 2 com "Conectar a Garmin". Conector implementado na issue #5 (aviso da chave e importação do histórico no quadro "Sua conta Garmin" da área fechada); entra em uso quando o dono cadastrar a chave.
 - **Atualizar agora:** busca dados novos fora da rotina agendada. Implementado na issue #5, como botão do quadro "Sua conta Garmin" em `/app`. Abrir `/app` também pede a sincronização (no máximo a cada 10 minutos); não há rotina agendada.
-- **Seus dados:** ver, baixar e apagar tudo.
+- **Sua conta** (`/app/conta`): Sair, Desconectar a Garmin (página guiada na etapa 1) e Apagar minha conta. Implementado na issue #22.
+- **Seus dados:** ver e baixar (planejado). Apagar tudo já existe em "Sua conta".
 - **Consentimento:** tela própria no primeiro acesso.

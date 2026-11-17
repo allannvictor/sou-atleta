@@ -1,4 +1,11 @@
-import { criarBanco, type ResultadoDaAtualizacao } from "@sou-atleta/db";
+import {
+  apagarTudo,
+  criarBanco,
+  NOMES_DAS_TABELAS,
+  sincronizacaoEmAndamento,
+  type ResultadoDaAtualizacao,
+  type ResultadoDoApagar,
+} from "@sou-atleta/db";
 import {
   ChaveMalFormadaError,
   criarCacheDeToken,
@@ -24,6 +31,8 @@ import {
  *   o site nem espera. No máximo uma execução a cada 10 minutos.
  * - `POST /atualizar`: o botão "Atualizar agora". Espera o fim e responde o que aconteceu (não
  *   diz "iniciada" quando a Garmin recusou a chave).
+ * - `POST /apagar-tudo`: "Apagar minha conta" (issue #22). Só apaga com a chave da Garmin já
+ *   removida do cofre; senão a próxima abertura da página reimportaria tudo.
  *
  * Esta Worker NÃO tem endereço público (`workers_dev` e `preview_urls` desligados, sem rotas):
  * só a Worker do site chega aqui, pela ligação interna `SYNC`, e só depois de o Cloudflare Access
@@ -68,6 +77,32 @@ function dependencias(env: Env): Dependencias {
   };
 }
 
+/** Mesma regra de `lerChave`: segredo vazio conta como ausente. */
+const chaveNoCofre = (env: Env) =>
+  env.GARMIN_API_KEY !== undefined && env.GARMIN_API_KEY.trim() !== "";
+
+/**
+ * Apaga tudo o que o app guardou. Só roda com a chave ausente: o app não consegue apagar o
+ * segredo (isso exigiria um token da Cloudflare com poder sobre segredos), então o dono o
+ * remove antes, pelo passo a passo da tela "Sua conta". Sem chave, a sincronização não busca nada.
+ */
+async function apagarTudoDoApp(env: Env): Promise<ResultadoDoApagar> {
+  if (chaveNoCofre(env)) {
+    registrarNoConsole({ evento: "apagar_recusado_chave_presente" });
+    return "chave_presente";
+  }
+  const banco = criarBanco(env.DB);
+  // Uma execução ainda viva (por exemplo, de uma versão antiga da Worker que ainda tinha a chave)
+  // gravaria dados de volta depois do apagar: espera a trava de 5 minutos passar.
+  if (await sincronizacaoEmAndamento(banco, new Date().toISOString())) {
+    registrarNoConsole({ evento: "apagar_recusado_sincronizando" });
+    return "sincronizacao_em_andamento";
+  }
+  await apagarTudo(banco);
+  registrarNoConsole({ evento: "dados_apagados", tabelas: NOMES_DAS_TABELAS.length });
+  return "apagado";
+}
+
 const falhaSemDetalhe = () => {
   registrarNoConsole({ evento: "erro_interno" });
 };
@@ -98,6 +133,14 @@ const SEM_TRABALHO = {
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const { pathname } = new URL(request.url);
+    if (request.method === "POST" && pathname === "/apagar-tudo") {
+      try {
+        return Response.json({ resultado: await apagarTudoDoApp(env) });
+      } catch {
+        falhaSemDetalhe();
+        return Response.json({ resultado: "erro" satisfies ResultadoDoApagar }, { status: 500 });
+      }
+    }
     if (request.method !== "POST" || (pathname !== "/atualizar" && pathname !== "/ao-abrir")) {
       return new Response(null, { status: 404 });
     }
